@@ -46,16 +46,18 @@ function ShellContent({ children }: { children: ReactNode }) {
   const { user, logout, isReady } = useStore();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const isPublicLeadForm = pathname.startsWith("/formularios/lead/");
 
   useEffect(() => {
-    if (isReady && !user && pathname !== "/login") router.replace("/login");
-  }, [isReady, pathname, router, user]);
+    if (isReady && !user && pathname !== "/login" && !isPublicLeadForm) router.replace("/login");
+  }, [isReady, isPublicLeadForm, pathname, router, user]);
 
   if (!isReady) {
     return <div className="min-h-screen bg-slate-50" />;
   }
 
   if (pathname === "/login") return <>{children}</>;
+  if (isPublicLeadForm) return <>{children}</>;
   if (!user) return <div className="min-h-screen bg-slate-50" />;
 
   const sidebar = (

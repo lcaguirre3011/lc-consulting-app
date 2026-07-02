@@ -57,7 +57,7 @@ interface StoreContextValue {
   logout: () => void;
   resetDemo: () => void;
   moveLead: (leadId: string, stage: LeadStage) => void;
-  addLead: (lead: Omit<Lead, "id" | "lastInteraction">) => void;
+  addLead: (lead: Omit<Lead, "id" | "lastInteraction">) => string;
   updateLead: (leadId: string, patch: Partial<Lead>) => void;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   updateProject: (projectId: string, patch: Partial<Project>) => void;
@@ -226,17 +226,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   }, [convertLeadToClient]);
 
   const addLead = useCallback((lead: Omit<Lead, "id" | "lastInteraction">) => {
+    const leadId = uid("lead");
     setData((current) => ({
       ...current,
       leads: [
         {
           ...lead,
-          id: uid("lead"),
+          id: leadId,
           lastInteraction: today(),
         },
         ...current.leads,
       ],
     }));
+    return leadId;
   }, []);
 
   const updateLead = useCallback((leadId: string, patch: Partial<Lead>) => {

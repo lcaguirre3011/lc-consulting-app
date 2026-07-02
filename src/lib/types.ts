@@ -35,11 +35,14 @@ export type PackageType =
   | "Proyecto Personalizado";
 
 export interface LeadIntake {
+  industry?: string;
   yearsOperating: number;
+  operatingTime?: string;
   howFoundUs: string;
   mainProblem: string;
   expectedResult: string;
   previousConsulting: "sí" | "no";
+  attemptedResolution?: string;
   previousExperienceNotes?: string;
   budgetAvailable: "definido" | "evaluando" | "sin presupuesto";
   willingToParticipate: "sí" | "prefiere delegar";

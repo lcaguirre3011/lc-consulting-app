@@ -24,7 +24,9 @@ import {
   CalendarPlus,
   CheckCircle2,
   Columns3,
+  Copy,
   Edit3,
+  ExternalLink,
   FileDown,
   GanttChart,
   GripVertical,
@@ -33,6 +35,7 @@ import {
   Plus,
   RotateCcw,
   Save,
+  Send,
   Table2,
 } from "lucide-react";
 import Image from "next/image";
@@ -91,6 +94,23 @@ function IconToggle({
       {children}
     </button>
   );
+}
+
+function getLeadFormPath(leadId: string) {
+  return `/formularios/lead/${leadId}`;
+}
+
+function getLeadFormUrl(leadId: string) {
+  if (typeof window === "undefined") return getLeadFormPath(leadId);
+  return `${window.location.origin}${getLeadFormPath(leadId)}`;
+}
+
+function yearsFromOperatingTime(value: string) {
+  if (value.includes("Menos")) return 1;
+  if (value.includes("1 y 3")) return 3;
+  if (value.includes("3 y 5")) return 5;
+  if (value.includes("MÃ¡s") || value.includes("Más")) return 6;
+  return 0;
 }
 
 export function LoginScreen() {
@@ -317,6 +337,15 @@ export function CrmScreen() {
   const [view, setView] = useState<"kanban" | "tabla">("kanban");
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
+  const [createdLeadLink, setCreatedLeadLink] = useState("");
+  const [copiedLeadId, setCopiedLeadId] = useState<string | null>(null);
+
+  const copyLeadFormLink = async (leadId: string) => {
+    const link = getLeadFormUrl(leadId);
+    await navigator.clipboard.writeText(link);
+    setCopiedLeadId(leadId);
+    window.setTimeout(() => setCopiedLeadId(null), 1800);
+  };
 
   return (
     <>
@@ -338,12 +367,29 @@ export function CrmScreen() {
         </div>
       </PageHeader>
       {showForm ? (
-        <LeadIntakeForm
+        <QuickLeadForm
           onSubmit={(lead) => {
-            addLead(lead);
+            const leadId = addLead(lead);
+            const link = getLeadFormUrl(leadId);
+            setCreatedLeadLink(link);
+            navigator.clipboard.writeText(link).catch(() => {});
             setShowForm(false);
           }}
         />
+      ) : null}
+      {createdLeadLink ? (
+        <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-semibold">Lead creado. Link del formulario copiado.</p>
+              <p className="mt-1 break-all text-emerald-800">{createdLeadLink}</p>
+            </div>
+            <Button variant="secondary" onClick={() => navigator.clipboard.writeText(createdLeadLink)}>
+              <Copy className="h-4 w-4" />
+              Copiar
+            </Button>
+          </div>
+        </div>
       ) : null}
       {view === "kanban" ? (
         <div className="grid gap-4 overflow-x-auto pb-3 xl:grid-cols-7">
@@ -384,7 +430,11 @@ export function CrmScreen() {
                           Fit {lead.intake?.internalFlag ?? "nuevo"}
                         </Badge>
                         <Badge tone="blue">{lead.closeProbability}%</Badge>
+                        <Badge tone={lead.intake ? "green" : "yellow"}>
+                          {lead.intake ? "formulario listo" : "formulario pendiente"}
+                        </Badge>
                       </div>
+                      <p className="mt-2 break-all text-xs text-brand-navy">{getLeadFormPath(lead.id)}</p>
                     </button>
                   ))}
                 </div>
@@ -405,6 +455,7 @@ export function CrmScreen() {
                   <th className="px-5 py-3">Paquete</th>
                   <th className="px-5 py-3">Valor</th>
                   <th className="px-5 py-3">Prob.</th>
+                  <th className="px-5 py-3">Formulario</th>
                   <th className="px-5 py-3">Mover</th>
                   <th className="px-5 py-3">Editar</th>
                 </tr>
@@ -468,6 +519,23 @@ export function CrmScreen() {
                         />
                       </td>
                       <td className="px-5 py-4">
+                        <div className="flex items-center gap-2">
+                          <Button variant="secondary" onClick={() => copyLeadFormLink(lead.id)}>
+                            <Copy className="h-4 w-4" />
+                            {copiedLeadId === lead.id ? "Copiado" : "Link"}
+                          </Button>
+                          <Link
+                            href={getLeadFormPath(lead.id)}
+                            target="_blank"
+                            className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-brand-mist bg-white text-brand-charcoal hover:border-brand-gold"
+                            title="Abrir formulario"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </Link>
+                          <Badge tone={lead.intake ? "green" : "yellow"}>{lead.intake ? "recibido" : "pendiente"}</Badge>
+                        </div>
+                      </td>
+                      <td className="px-5 py-4">
                         <div className="flex gap-2">
                           <Button variant="secondary" disabled={lead.stage === previous} onClick={() => moveLead(lead.id, previous)}>
                             Atrás
@@ -502,6 +570,53 @@ export function CrmScreen() {
   );
 }
 
+function QuickLeadForm({
+  onSubmit,
+}: {
+  onSubmit: (lead: Omit<Lead, "id" | "lastInteraction">) => void;
+}) {
+  return (
+    <Panel className="mb-6">
+      <PanelHeader
+        title="Nuevo lead"
+        description="Captura los datos mínimos y envía el link del filtro inicial al prospecto."
+      />
+      <form
+        className="grid gap-4 p-5 md:grid-cols-2"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          onSubmit({
+            company: String(form.get("company") || "Prospecto sin empresa"),
+            contactName: String(form.get("contactName") || "Contacto pendiente"),
+            email: String(form.get("email") || ""),
+            phone: String(form.get("phone") || ""),
+            stage: "nuevo lead",
+            estimatedValue: Number(form.get("estimatedValue") || 0),
+            closeProbability: 10,
+            nextStep: "Enviar y esperar filtro inicial LC",
+            source: String(form.get("source") || "Manual"),
+          });
+        }}
+      >
+        <Field label="Empresa o proyecto"><TextInput name="company" required /></Field>
+        <Field label="Contacto"><TextInput name="contactName" required /></Field>
+        <Field label="Correo"><TextInput name="email" type="email" /></Field>
+        <Field label="WhatsApp"><TextInput name="phone" placeholder="+52 ..." /></Field>
+        <Field label="Cómo llegó"><TextInput name="source" defaultValue="Manual" /></Field>
+        <Field label="Valor estimado opcional"><TextInput name="estimatedValue" type="number" min="0" defaultValue={0} /></Field>
+        <div className="flex justify-end gap-2 md:col-span-2">
+          <Button>
+            <Send className="h-4 w-4" />
+            Crear lead y copiar link
+          </Button>
+        </div>
+      </form>
+    </Panel>
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function LeadIntakeForm({
   onSubmit,
 }: {
@@ -646,6 +761,24 @@ function LeadEditor({
           <Button variant="ghost" onClick={onClose}>Cerrar</Button>
         </div>
         <div className="grid gap-4 p-5 md:grid-cols-2">
+          <div className="rounded-lg border border-brand-mist bg-brand-paper p-3 md:col-span-2">
+            <p className="text-sm font-semibold text-brand-charcoal">Link del filtro inicial</p>
+            <div className="mt-2 flex flex-col gap-2 md:flex-row md:items-center">
+              <p className="flex-1 break-all text-sm text-brand-charcoal/70">{getLeadFormUrl(lead.id)}</p>
+              <Button type="button" variant="secondary" onClick={() => navigator.clipboard.writeText(getLeadFormUrl(lead.id))}>
+                <Copy className="h-4 w-4" />
+                Copiar link
+              </Button>
+              <Link
+                href={getLeadFormPath(lead.id)}
+                target="_blank"
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-brand-mist bg-white px-3 text-sm font-medium text-brand-charcoal"
+              >
+                <ExternalLink className="h-4 w-4" />
+                Abrir
+              </Link>
+            </div>
+          </div>
           <Field label="Empresa"><TextInput value={company} onChange={(event) => setCompany(event.target.value)} /></Field>
           <Field label="Contacto"><TextInput value={contactName} onChange={(event) => setContactName(event.target.value)} /></Field>
           <Field label="Email"><TextInput value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
@@ -703,6 +836,205 @@ function LeadEditor({
         </div>
       </div>
     </div>
+  );
+}
+
+export function PublicLeadFormScreen() {
+  const { id } = useParams<{ id: string }>();
+  const { data, updateLead, isReady } = useStore();
+  const lead = data.leads.find((item) => item.id === id);
+  const [budget, setBudget] = useState<"definido" | "evaluando" | "sin presupuesto">(
+    lead?.intake?.budgetAvailable ?? "evaluando",
+  );
+  const [participation, setParticipation] = useState<"sí" | "prefiere delegar">(
+    lead?.intake?.willingToParticipate ?? "sí",
+  );
+  const [previousConsulting, setPreviousConsulting] = useState<"no" | "sí">(
+    lead?.intake?.previousConsulting ?? "no",
+  );
+  const [submitted, setSubmitted] = useState(false);
+
+  if (!isReady) return <main className="min-h-screen bg-brand-paper" />;
+
+  if (!lead) {
+    return (
+      <main className="min-h-screen bg-brand-paper px-5 py-10">
+        <div className="mx-auto max-w-2xl">
+          <EmptyState
+            title="Formulario no encontrado"
+            detail="Revisa que el link sea correcto o solicita un nuevo enlace al equipo LC."
+          />
+        </div>
+      </main>
+    );
+  }
+
+  if (submitted) {
+    return (
+      <main className="min-h-screen bg-brand-navy px-5 py-10 text-white">
+        <div className="mx-auto flex min-h-[80vh] max-w-2xl flex-col items-center justify-center text-center">
+          <Image src="/brand/full-white.png" alt="Leading Connections" width={360} height={106} className="h-auto w-72 max-w-full" />
+          <div className="mt-10 rounded-lg border border-white/15 bg-white/10 p-8">
+            <CheckCircle2 className="mx-auto h-10 w-10 text-brand-gold" />
+            <h1 className="mt-5 text-3xl font-semibold">Gracias por compartir esto con nosotros.</h1>
+            <p className="mt-4 leading-7 text-brand-mist">
+              Revisaremos tu información y si hay fit, nos pondremos en contacto contigo en menos de 48 horas para agendar tu sesión de descubrimiento.
+            </p>
+            <p className="mt-6 text-sm text-brand-gold">Equipo LC Leading Connections</p>
+          </div>
+        </div>
+      </main>
+    );
+  }
+
+  const noBudget = budget === "sin presupuesto";
+
+  return (
+    <main className="min-h-screen bg-brand-paper text-brand-charcoal">
+      <section className="bg-brand-navy px-5 py-8 text-white">
+        <div className="mx-auto max-w-4xl">
+          <Image src="/brand/full-white.png" alt="Leading Connections" width={330} height={98} className="h-auto w-72 max-w-full" priority />
+          <div className="mt-10 max-w-3xl">
+            <p className="text-sm font-semibold text-brand-gold">LC Leading Connections</p>
+            <h1 className="mt-3 text-3xl font-semibold sm:text-5xl">Cuéntanos sobre tu negocio</h1>
+            <p className="mt-5 leading-7 text-brand-mist">
+              Este formulario nos ayuda a entender tu negocio y el reto que enfrentas antes de nuestra primera conversación.
+              No hay respuestas correctas o incorrectas; solo queremos conocer tu realidad tal como es.
+            </p>
+            <p className="mt-4 text-sm text-brand-gold">Tiempo estimado: 5 minutos</p>
+          </div>
+        </div>
+      </section>
+
+      <form
+        className="mx-auto grid max-w-4xl gap-6 px-5 py-8"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          const howFoundUs = String(form.get("howFoundUs") || "Otro");
+          const operatingTime = String(form.get("operatingTime") || "");
+          const flag = noBudget ? "rojo" : participation === "prefiere delegar" || budget === "evaluando" ? "amarillo" : "verde";
+          updateLead(lead.id, {
+            company: String(form.get("company")),
+            contactName: String(form.get("contactName")),
+            email: String(form.get("email")),
+            phone: String(form.get("phone")),
+            source: howFoundUs,
+            stage: noBudget ? "perdido" : "contacto inicial",
+            closeProbability: flag === "verde" ? 45 : flag === "amarillo" ? 25 : 5,
+            nextStep: noBudget
+              ? "Sin presupuesto disponible. Recontactar cuando exista disposición de inversión."
+              : "Revisar filtro inicial y responder en menos de 48 horas.",
+            intake: {
+              industry: String(form.get("industry")),
+              yearsOperating: yearsFromOperatingTime(operatingTime),
+              operatingTime,
+              howFoundUs,
+              mainProblem: String(form.get("mainProblem")),
+              expectedResult: String(form.get("expectedResult")),
+              previousConsulting,
+              attemptedResolution: String(form.get("attemptedResolution") || ""),
+              previousExperienceNotes: String(form.get("previousExperienceNotes") || ""),
+              budgetAvailable: budget,
+              willingToParticipate: participation,
+              internalFlag: flag,
+            },
+          });
+          setSubmitted(true);
+        }}
+      >
+        <Panel>
+          <PanelHeader title="1. ¿Quién eres?" description="Cuéntanos un poco sobre ti y tu negocio." />
+          <div className="grid gap-4 p-5 md:grid-cols-2">
+            <Field label="Nombre completo *"><TextInput name="contactName" defaultValue={lead.contactName} required /></Field>
+            <Field label="Nombre de tu empresa o proyecto *"><TextInput name="company" defaultValue={lead.company} required /></Field>
+            <Field label="Industria *">
+              <Select name="industry" defaultValue={lead.intake?.industry ?? ""} required>
+                <option value="" disabled>Selecciona una opción</option>
+                {["Manufactura e industria", "Logística y transporte", "Retail y comercio", "Servicios profesionales", "Salud y bienestar", "Tecnología", "Educación", "Construcción y arquitectura", "Alimentos y bebidas", "Moda y estilo de vida", "Otro"].map((item) => <option key={item}>{item}</option>)}
+              </Select>
+            </Field>
+            <Field label="Tiempo operando *">
+              <Select name="operatingTime" defaultValue={lead.intake?.operatingTime ?? ""} required>
+                <option value="" disabled>Selecciona una opción</option>
+                {["Todavía es una idea, aún no opera", "Menos de 1 año", "Entre 1 y 3 años", "Entre 3 y 5 años", "Más de 5 años"].map((item) => <option key={item}>{item}</option>)}
+              </Select>
+            </Field>
+            <Field label="¿Cómo nos conociste?">
+              <Select name="howFoundUs" defaultValue={lead.intake?.howFoundUs ?? lead.source}>
+                {["Me lo recomendó alguien", "Redes sociales", "LinkedIn", "Búsqueda en internet", "Evento o exposición", "Otro"].map((item) => <option key={item}>{item}</option>)}
+              </Select>
+            </Field>
+          </div>
+        </Panel>
+
+        <Panel>
+          <PanelHeader title="2. Tu reto actual" description="Escribe con tus propias palabras lo que está pasando hoy." />
+          <div className="grid gap-4 p-5">
+            <Field label="¿Cuál es el principal problema o reto que enfrenta tu negocio hoy? *">
+              <TextArea name="mainProblem" defaultValue={lead.intake?.mainProblem} required />
+            </Field>
+            <Field label="¿Qué resultado concreto quieres lograr en los próximos 3 meses? *">
+              <TextArea name="expectedResult" defaultValue={lead.intake?.expectedResult} required />
+            </Field>
+            <Field label="¿Han intentado resolver este problema antes? *">
+              <Select value={previousConsulting} onChange={(event) => setPreviousConsulting(event.target.value as "no" | "sí")}>
+                <option value="no">No, es la primera vez que buscamos ayuda</option>
+                <option value="sí">Sí, ya intentamos resolverlo</option>
+              </Select>
+            </Field>
+            {previousConsulting === "sí" ? (
+              <Field label="¿Qué intentaron y por qué no funcionó?">
+                <TextArea name="previousExperienceNotes" defaultValue={lead.intake?.previousExperienceNotes} />
+              </Field>
+            ) : null}
+            <input type="hidden" name="attemptedResolution" value={previousConsulting} />
+          </div>
+        </Panel>
+
+        <Panel>
+          <PanelHeader title="3. Compatibilidad" description="Estas preguntas nos ayudan a saber si podemos trabajar bien juntos." />
+          <div className="grid gap-4 p-5 md:grid-cols-2">
+            <Field label="¿Tienes presupuesto asignado para trabajar con una consultora? *">
+              <Select value={budget} onChange={(event) => setBudget(event.target.value as typeof budget)}>
+                <option value="definido">Sí, tengo presupuesto definido para esto</option>
+                <option value="evaluando">Estoy evaluando cuánto invertir</option>
+                <option value="sin presupuesto">Aún no tengo presupuesto asignado</option>
+              </Select>
+            </Field>
+            <Field label="¿Estás dispuesto a participar activamente en el proceso? *">
+              <Select value={participation} onChange={(event) => setParticipation(event.target.value as typeof participation)}>
+                <option value="sí">Sí, entiendo que mi participación es parte del resultado</option>
+                <option value="prefiere delegar">Prefiero delegar completamente y recibir resultados terminados</option>
+              </Select>
+            </Field>
+            {noBudget ? (
+              <div className="md:col-span-2 rounded-md border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">
+                En este momento LC trabaja con empresas que tienen presupuesto disponible para consultoría. Guardaremos tu información para retomarla cuando estés en esa etapa.
+              </div>
+            ) : participation === "prefiere delegar" ? (
+              <div className="md:col-span-2 rounded-md border border-brand-gold/50 bg-brand-gold/10 p-3 text-sm text-brand-charcoal">
+                Nota interna: este lead quedará con bandera amarilla porque el modelo LC requiere participación activa.
+              </div>
+            ) : null}
+          </div>
+        </Panel>
+
+        <Panel>
+          <PanelHeader title="4. Para cerrar" description="Solo un par de datos para poder contactarte." />
+          <div className="grid gap-4 p-5 md:grid-cols-2">
+            <Field label="Correo electrónico *"><TextInput name="email" type="email" defaultValue={lead.email} required /></Field>
+            <Field label="WhatsApp *"><TextInput name="phone" defaultValue={lead.phone} placeholder="+52 656 123 4567" required /></Field>
+            <div className="md:col-span-2">
+              <Button className="w-full md:w-auto">
+                <Send className="h-4 w-4" />
+                Enviar formulario
+              </Button>
+            </div>
+          </div>
+        </Panel>
+      </form>
+    </main>
   );
 }
 

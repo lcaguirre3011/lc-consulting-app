@@ -164,22 +164,30 @@ function emptyDiscovery(): DiscoveryForm {
   };
 }
 
-function isDiscoveryComplete(discovery: DiscoveryForm) {
-  const required = [
-    discovery.businessModel,
-    discovery.describedSymptom,
-    discovery.rootProblem,
-    discovery.previousAttempts,
-    discovery.urgencyImpact,
-    discovery.commercialBaseline,
-    discovery.operationalBaseline,
-    discovery.digitalBaseline,
-    discovery.successMetric,
-    discovery.metricDeadline,
-    discovery.recommendedPackage,
-    discovery.packageJustification,
+function discoveryMissingFields(discovery?: DiscoveryForm) {
+  if (!discovery) {
+    return ["Formulario 2 no iniciado"];
+  }
+  const required: [string, unknown][] = [
+    ["Modelo de negocio", discovery.businessModel],
+    ["Síntoma descrito", discovery.describedSymptom],
+    ["Problema raíz", discovery.rootProblem],
+    ["Intentos previos", discovery.previousAttempts],
+    ["Impacto de no resolver", discovery.urgencyImpact],
+    ["Baseline comercial", discovery.commercialBaseline],
+    ["Baseline operativo", discovery.operationalBaseline],
+    ["Baseline digital", discovery.digitalBaseline],
+    ["Métrica de éxito", discovery.successMetric],
+    ["Fecha límite de la métrica", discovery.metricDeadline],
+    ["Paquete recomendado", discovery.recommendedPackage],
+    ["Justificación del paquete", discovery.packageJustification],
   ];
-  return required.every((value) => String(value).trim().length > 0) && discovery.weeklyHours > 0 && discovery.durationMonths > 0;
+  const missing = required
+    .filter(([, value]) => String(value ?? "").trim().length === 0)
+    .map(([label]) => label);
+  if ((discovery.weeklyHours ?? 0) <= 0) missing.push("Horas LC por semana");
+  if ((discovery.durationMonths ?? 0) <= 0) missing.push("Duración estimada");
+  return missing;
 }
 
 export function LoginScreen() {
@@ -883,53 +891,43 @@ export function CrmScreen() {
       {tab === "leads" ? (
         <div className="space-y-5">
           <Panel>
-            <PanelHeader title="Leads" description="Base operativa: edita valores principales, revisa formularios y da seguimiento desde una sola vista." />
+            <PanelHeader title="Leads" description="Lista limpia de oportunidades. Haz click en una fila para abrir la ficha, editar contactos y revisar formularios almacenados." />
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1520px] text-left text-sm">
+              <table className="w-full min-w-[1120px] text-left text-sm">
                 <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
                   <tr>
                     <th className="px-5 py-3">Empresa</th>
                     <th className="px-5 py-3">Contacto</th>
-                    <th className="px-5 py-3">Puesto</th>
-                    <th className="px-5 py-3">Email</th>
-                    <th className="px-5 py-3">WhatsApp</th>
                     <th className="px-5 py-3">Etapa</th>
-                    <th className="px-5 py-3">Dolor</th>
-                    <th className="px-5 py-3">Paquete</th>
                     <th className="px-5 py-3">Valor</th>
                     <th className="px-5 py-3">Prob.</th>
-                    <th className="px-5 py-3">Accion</th>
+                    <th className="px-5 py-3">Formulario 1</th>
+                    <th className="px-5 py-3">Formulario 2</th>
+                    <th className="px-5 py-3">Próxima acción</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-brand-mist">
-                  {visibleLeads.map((lead) => (
-                    <tr key={lead.id} className="hover:bg-brand-gold/10">
-                    <td className="px-5 py-4"><TextInput className="min-w-44" defaultValue={lead.company} onBlur={(event) => updateLead(lead.id, { company: event.currentTarget.value })} /></td>
-                    <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactName} onBlur={(event) => updateLead(lead.id, { contactName: event.currentTarget.value })} /></td>
-                    <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactRole ?? ""} onBlur={(event) => updateLead(lead.id, { contactRole: event.currentTarget.value })} /></td>
-                    <td className="px-5 py-4"><TextInput className="min-w-52" type="email" defaultValue={lead.email} onBlur={(event) => updateLead(lead.id, { email: event.currentTarget.value })} /></td>
-                    <td className="px-5 py-4"><TextInput className="min-w-36" defaultValue={lead.phone} onBlur={(event) => updateLead(lead.id, { phone: event.currentTarget.value })} /></td>
-                    <td className="px-5 py-4">
-                        <Select
-                          className="min-w-48"
-                          value={lead.stage}
-                          onChange={(event) => moveLeadThroughPipeline(lead.id, event.currentTarget.value as LeadStage)}
-                        >
-                          {leadStages.map((item) => <option key={item}>{item}</option>)}
-                        </Select>
-                      </td>
-                      <td className="px-5 py-4 max-w-72 text-brand-charcoal/65">{leadPain(lead)}</td>
+                  {visibleLeads.map((lead) => {
+                    const missingF2 = discoveryMissingFields(lead.discovery);
+                    return (
+                    <tr key={lead.id} className="cursor-pointer hover:bg-brand-gold/10" onClick={() => setEditingLead(lead)}>
                       <td className="px-5 py-4">
-                        <Select className="min-w-56" value={lead.recommendedPackage ?? ""} onChange={(event) => updateLead(lead.id, { recommendedPackage: event.currentTarget.value ? (event.currentTarget.value as PackageType) : undefined })}>
-                          <option value="">Por definir</option>
-                          {consultingPackages.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-                        </Select>
+                        <p className="font-medium text-brand-charcoal">{lead.company}</p>
+                        <p className="mt-1 text-xs text-brand-charcoal/45">{leadIndustry(lead)}</p>
                       </td>
-                      <td className="px-5 py-4"><TextInput className="w-32" type="number" defaultValue={lead.estimatedValue} onBlur={(event) => updateLead(lead.id, { estimatedValue: Number(event.currentTarget.value) })} /></td>
-                      <td className="px-5 py-4"><TextInput className="w-20" type="number" min="0" max="100" defaultValue={lead.closeProbability} onBlur={(event) => updateLead(lead.id, { closeProbability: Number(event.currentTarget.value) })} /></td>
-                      <td className="px-5 py-4"><Button variant="ghost" onClick={() => setEditingLead(lead)}>Abrir</Button></td>
+                      <td className="px-5 py-4">
+                        <p className="font-medium text-brand-charcoal">{lead.contactName}</p>
+                        <p className="mt-1 text-xs text-brand-charcoal/45">{lead.contactRole || lead.email || "Contacto por completar"}</p>
+                      </td>
+                      <td className="px-5 py-4"><Badge tone={statusTone(lead.stage)}>{lead.stage}</Badge></td>
+                      <td className="px-5 py-4">{money(lead.estimatedValue)}</td>
+                      <td className="px-5 py-4">{lead.closeProbability}%</td>
+                      <td className="px-5 py-4"><Badge tone={lead.intake ? "green" : "yellow"}>{lead.intake ? "Recibido" : "Pendiente"}</Badge></td>
+                      <td className="px-5 py-4"><Badge tone={missingF2.length ? "red" : "green"}>{missingF2.length ? `${missingF2.length} faltantes` : "Completo"}</Badge></td>
+                      <td className="px-5 py-4 max-w-72 text-brand-charcoal/65">{lead.nextStep}</td>
                     </tr>
-                  ))}
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -952,7 +950,7 @@ export function CrmScreen() {
             </Panel>
 
             <Panel>
-              <PanelHeader title="Formularios iniciales" description="Links del Formulario 1 vinculados al lead." />
+              <PanelHeader title="Formularios almacenados" description="Estado de Formulario 1 y Formulario 2. Abre la ficha del lead para revisar la información guardada." />
               <div className="space-y-3 p-5">
                 {formLeads.map((lead) => (
                   <div key={lead.id} className="rounded-lg border border-brand-mist p-4">
@@ -962,8 +960,8 @@ export function CrmScreen() {
                     </div>
                     <p className="mt-3 text-sm leading-6 text-brand-charcoal/65">{lead.intake?.mainProblem ?? "Aun no responde el filtro inicial."}</p>
                     <div className="mt-4 flex flex-wrap gap-2">
-                      <Button variant="secondary" onClick={() => copyLeadFormLink(lead.id)}><Copy className="h-4 w-4" />{copiedLeadId === lead.id ? "Copiado" : "Copiar"}</Button>
-                      <Link href={getLeadFormPath(lead.id)} target="_blank" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-brand-mist bg-white px-3 text-sm font-medium text-brand-charcoal hover:border-brand-gold"><ExternalLink className="h-4 w-4" />Abrir</Link>
+                      <Button variant="secondary" onClick={() => copyLeadFormLink(lead.id)}><Copy className="h-4 w-4" />{copiedLeadId === lead.id ? "Copiado" : "Copiar link F1"}</Button>
+                      <Button variant="ghost" onClick={() => setEditingLead(lead)}>Ver ficha</Button>
                     </div>
                   </div>
                 ))}
@@ -1393,6 +1391,7 @@ function LeadEditor({
   const [mainProblem, setMainProblem] = useState(lead.intake?.mainProblem ?? "");
   const [expectedResult, setExpectedResult] = useState(lead.intake?.expectedResult ?? "");
   const [recommendedPackage, setRecommendedPackage] = useState<PackageType | undefined>(lead.recommendedPackage);
+  const missingDiscoveryFields = discoveryMissingFields(lead.discovery);
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-brand-charcoal/60 p-4">
@@ -1433,6 +1432,46 @@ function LeadEditor({
                 Abrir
               </Link>
             </div>
+          </div>
+
+          <div className="rounded-lg border border-brand-mist bg-white p-4 md:col-span-2">
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-brand-charcoal">Información almacenada del lead</p>
+                <p className="mt-1 text-sm text-brand-charcoal/55">Aquí vive el contexto comercial antes de convertirlo a cliente.</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge tone={lead.intake ? "green" : "yellow"}>Formulario 1 {lead.intake ? "recibido" : "pendiente"}</Badge>
+                <Badge tone={missingDiscoveryFields.length ? "red" : "green"}>Formulario 2 {missingDiscoveryFields.length ? "incompleto" : "completo"}</Badge>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <ReadOnlyFact label="F1 - Problema declarado" value={lead.intake?.mainProblem ?? "Pendiente"} />
+              <ReadOnlyFact label="F1 - Resultado esperado" value={lead.intake?.expectedResult ?? "Pendiente"} />
+              <ReadOnlyFact label="F2 - Problema raíz LC" value={lead.discovery?.rootProblem ?? "Pendiente"} />
+              <ReadOnlyFact label="F2 - Métrica de éxito" value={lead.discovery?.successMetric ?? "Pendiente"} />
+            </div>
+            {missingDiscoveryFields.length ? (
+              <div className="mt-4 rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800">
+                <div className="flex items-center gap-2 font-semibold">
+                  <AlertTriangle className="h-4 w-4" />
+                  Faltan datos para cerrar Formulario 2
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {missingDiscoveryFields.map((item) => <Badge key={item} tone="red">{item}</Badge>)}
+                </div>
+                <Link
+                  href={`/sesion/lead/${lead.id}`}
+                  className="mt-4 inline-flex h-10 items-center justify-center rounded-md bg-brand-navy px-3 text-sm font-medium text-white"
+                >
+                  Abrir sección de descubrimiento
+                </Link>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="md:col-span-2">
+            <p className="mb-3 text-sm font-semibold text-brand-charcoal">Contacto principal</p>
           </div>
           <Field label="Empresa"><TextInput value={company} onChange={(event) => setCompany(event.target.value)} /></Field>
           <Field label="Contacto"><TextInput value={contactName} onChange={(event) => setContactName(event.target.value)} /></Field>
@@ -1745,7 +1784,8 @@ export function SessionModeScreen() {
     );
   }
 
-  const complete = isDiscoveryComplete(discovery);
+  const missingDiscoveryFields = discoveryMissingFields(discovery);
+  const complete = missingDiscoveryFields.length === 0;
 
   const updateDiscovery = <Key extends keyof DiscoveryForm>(key: Key, value: DiscoveryForm[Key]) => {
     setDiscovery((current) => ({ ...current, [key]: value }));
@@ -1790,6 +1830,7 @@ export function SessionModeScreen() {
             <Button variant="secondary" onClick={() => saveDiscovery(false)}>{saved ? "Guardado" : "Guardar avance"}</Button>
             <Button
               disabled={!complete}
+              title={!complete ? `Faltan: ${missingDiscoveryFields.join(", ")}` : undefined}
               onClick={() => {
                 saveDiscovery(true);
                 moveLead(lead.id, "cliente ganado");
@@ -1943,8 +1984,15 @@ export function SessionModeScreen() {
         </Panel>
 
         {!complete ? (
-          <div className="rounded-lg border border-brand-gold/40 bg-brand-gold/10 p-4 text-base text-brand-charcoal">
-            Completa los campos clave del descubrimiento para habilitar la conversion a cliente.
+          <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-base text-rose-800">
+            <div className="flex items-center gap-2 font-semibold">
+              <AlertTriangle className="h-5 w-5" />
+              Faltan datos para completar Formulario 2
+            </div>
+            <p className="mt-2 text-sm text-rose-700">Completa estos campos antes de convertir a cliente o enviar propuesta formal.</p>
+            <div className="mt-3 flex flex-wrap gap-2">
+              {missingDiscoveryFields.map((item) => <Badge key={item} tone="red">{item}</Badge>)}
+            </div>
           </div>
         ) : null}
       </div>

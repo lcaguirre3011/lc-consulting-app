@@ -23,14 +23,18 @@ import {
   AlertTriangle,
   CalendarPlus,
   CheckCircle2,
+  ClipboardCheck,
   Columns3,
   Copy,
   Edit3,
   ExternalLink,
+  FileCheck2,
   FileDown,
+  FolderOpen,
   GanttChart,
   GripVertical,
   LayoutGrid,
+  LineChart,
   List,
   Plus,
   RotateCcw,
@@ -38,6 +42,7 @@ import {
   Send,
   Table2,
   Video,
+  WalletCards,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -261,7 +266,7 @@ export function DashboardScreen() {
     data.projects.reduce((sum, project) => sum + project.progress, 0) / Math.max(data.projects.length, 1),
   );
   const consultantsBusy = data.consultants.filter((consultant) => consultant.status === "ocupado");
-  const newLeads = data.leads.filter((lead) => lead.stage === "nuevo lead" || lead.stage === "contacto inicial");
+  const newLeads = data.leads.filter((lead) => lead.stage === "nuevo lead" || lead.stage === "formulario 1 enviado");
   const proposals = data.leads.filter((lead) => ["propuesta enviada", "negociacion"].includes(lead.stage));
 
   return (
@@ -351,7 +356,7 @@ export function DashboardScreen() {
           <div className="space-y-3 p-5">
             {newLeads.length ? (
               <Link href="/crm" className="block rounded-lg border border-brand-mist bg-brand-paper p-3">
-                <p className="text-sm font-medium text-brand-charcoal">Hay {newLeads.length} leads nuevos o en contacto inicial</p>
+                <p className="text-sm font-medium text-brand-charcoal">Hay {newLeads.length} leads nuevos o con Formulario 1 enviado</p>
                 <p className="mt-1 text-xs text-brand-charcoal/60">Revisa fit y agenda descubrimiento.</p>
               </Link>
             ) : null}
@@ -649,10 +654,10 @@ function QuickLeadForm({
             contactName: String(form.get("contactName") || "Contacto pendiente"),
             email: String(form.get("email") || ""),
             phone: String(form.get("phone") || ""),
-            stage: "nuevo lead",
+            stage: "formulario 1 enviado",
             estimatedValue: Number(form.get("estimatedValue") || 0),
             closeProbability: 10,
-            nextStep: "Enviar y esperar filtro inicial LC",
+            nextStep: "Esperar respuesta del Formulario 1 LC",
             source: String(form.get("source") || "Manual"),
           });
         }}
@@ -817,7 +822,7 @@ function LeadEditor({
             <p className="text-sm text-brand-charcoal/60">Editar lead y expediente inicial</p>
           </div>
           <div className="flex items-center gap-2">
-            {lead.stage === "diagnostico agendado" ? (
+            {lead.stage === "sesion inicial agendada" ? (
               <Link
                 href={`/sesion/lead/${lead.id}`}
                 className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-navy px-3 text-sm font-medium text-white shadow-sm shadow-brand-navy/20"
@@ -989,7 +994,7 @@ export function PublicLeadFormScreen() {
             email: String(form.get("email")),
             phone: String(form.get("phone")),
             source: howFoundUs,
-            stage: noBudget ? "perdido" : "contacto inicial",
+            stage: noBudget ? "perdido" : "investigacion en progreso",
             closeProbability: flag === "verde" ? 45 : flag === "amarillo" ? 25 : 5,
             nextStep: noBudget
               ? "Sin presupuesto disponible. Recontactar cuando exista disposición de inversión."
@@ -1344,6 +1349,27 @@ function ReadOnlyFact({ label, value }: { label: string; value: string }) {
   );
 }
 
+function ActionEmptyState({
+  icon,
+  title,
+  detail,
+  action,
+}: {
+  icon: ReactNode;
+  title: string;
+  detail: string;
+  action?: ReactNode;
+}) {
+  return (
+    <div className="rounded-lg border border-dashed border-brand-mist bg-white p-8 text-center">
+      <div className="mx-auto grid h-12 w-12 place-items-center rounded-md bg-brand-paper text-brand-navy">{icon}</div>
+      <h3 className="mt-4 font-semibold text-brand-charcoal">{title}</h3>
+      <p className="mx-auto mt-2 max-w-xl text-sm leading-6 text-brand-charcoal/60">{detail}</p>
+      {action ? <div className="mt-5 flex justify-center">{action}</div> : null}
+    </div>
+  );
+}
+
 function SessionSection({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="grid gap-4 border-t border-brand-mist pt-5 first:border-t-0 first:pt-0">
@@ -1493,7 +1519,7 @@ function NewProjectForm({ clientId }: { clientId: string }) {
           <Select name="packageType">{consultingPackages.map((item) => <option key={item.id}>{item.name}</option>)}</Select>
         </Field>
         <Field label="Prioridad">
-          <Select name="priority"><option value="media">Media</option><option value="alta">Alta</option><option value="critica">Crítica</option><option value="baja">Baja</option></Select>
+          <Select name="priority"><option value="media">Media</option><option value="alta">Alta</option><option value="critica">Critica</option><option value="baja">Baja</option></Select>
         </Field>
         <Field label="Inicio"><TextInput name="startsAt" type="date" required /></Field>
         <Field label="Fin"><TextInput name="endsAt" type="date" required /></Field>
@@ -1512,7 +1538,7 @@ function NewProjectForm({ clientId }: { clientId: string }) {
 export function ClientDetailScreen() {
   const { id } = useParams<{ id: string }>();
   const { data, addDiagnosisFromIntake, updateDiagnosis } = useStore();
-  const [tab, setTab] = useState<"resumen" | "proyectos" | "formularios" | "expedientes" | "historial">("resumen");
+  const [tab, setTab] = useState<"expediente" | "acuerdo" | "proyectos" | "sesiones" | "kpis" | "finanzas">("expediente");
   const [showNewExpediente, setShowNewExpediente] = useState(false);
   const [editingDiagnosis, setEditingDiagnosis] = useState<Diagnosis | null>(null);
   const client = data.clients.find((item) => item.id === id);
@@ -1522,11 +1548,59 @@ export function ClientDetailScreen() {
   const projects = data.projects.filter((item) => item.clientId === client.id);
   const tasks = data.tasks.filter((item) => item.clientId === client.id);
   const kpis = data.kpis.filter((item) => item.clientId === client.id);
-  const meetings = data.meetings.filter((item) => item.clientId === client.id);
+  const meetings = [...data.meetings.filter((item) => item.clientId === client.id)].sort((a, b) => b.date.localeCompare(a.date));
   const interactions = data.interactions.filter((item) => item.clientId === client.id);
   const diagnoses = data.diagnoses.filter((item) => item.clientId === client.id);
   const intakeForms = data.intakeForms.filter((item) => item.clientId === client.id);
   const history = data.clientHistory.filter((item) => item.clientId === client.id);
+  const lead = data.leads.find((item) => item.convertedClientId === client.id || item.company === client.name);
+  const discovery = lead?.discovery;
+  const signedAgreement = history.find((item) => item.title.toLowerCase().includes("acuerdo") && item.title.toLowerCase().includes("firmado"));
+  const packageName = projects[0]?.packageType ?? lead?.recommendedPackage ?? client.services[0] ?? "Sin paquete asignado";
+  const assignedConsultants = Array.from(new Set([client.accountOwner, ...projects.map((project) => project.owner)]));
+  const projectRevenue = projects.reduce((sum, project) => sum + project.budget, 0);
+  const paymentsReceived = Math.round(projectRevenue * 0.45);
+  const projectExpenses = Math.round(projectRevenue * 0.28);
+  const margin = paymentsReceived - projectExpenses;
+
+  const generateAgreementPdf = async () => {
+    const { jsPDF } = await import("jspdf");
+    const doc = new jsPDF();
+    let y = 18;
+    const write = (label: string, value: string) => {
+      doc.setFont("helvetica", "bold");
+      doc.text(label, 20, y);
+      y += 7;
+      doc.setFont("helvetica", "normal");
+      const lines = doc.splitTextToSize(value || "Pendiente", 170);
+      doc.text(lines, 20, y);
+      y += lines.length * 6 + 5;
+      if (y > 270) {
+        doc.addPage();
+        y = 18;
+      }
+    };
+
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(17);
+    doc.text("Acuerdo de Claridad LC", 20, y);
+    y += 11;
+    doc.setFontSize(11);
+    write("Cliente", client.name);
+    write("Paquete recomendado", packageName);
+    write("Problema principal", discovery?.rootProblem || client.mainPain);
+    write("Resultado esperado", discovery?.successMetric || intakeForms[0]?.objectives || "Pendiente de definir");
+    write("Que si se trabajara", discovery?.packageJustification || projects[0]?.scope || "Alcance pendiente de formalizar");
+    write("Baseline inicial", [discovery?.commercialBaseline, discovery?.operationalBaseline, discovery?.digitalBaseline].filter(Boolean).join("\n") || "Pendiente");
+    write("Compromisos LC / Cliente", discovery?.decisionJustification || "Pendiente de firma por ambas partes");
+    doc.save(`acuerdo-claridad-${client.name.toLowerCase().replace(/[^a-z0-9]+/g, "-")}.pdf`);
+  };
+
+  const tabs = ["expediente", "acuerdo", "proyectos", "sesiones", "kpis", "finanzas"] as const;
+  const timeline = [
+    ...history,
+    ...interactions.map((item) => ({ id: item.id, date: item.date, actor: "LC", title: item.title, detail: item.detail })),
+  ].sort((a, b) => b.date.localeCompare(a.date));
 
   return (
     <>
@@ -1535,222 +1609,289 @@ export function ClientDetailScreen() {
       </PageHeader>
       <div className="grid gap-4 md:grid-cols-4">
         <Stat label="Industria" value={client.industry} detail={client.size} />
-        <Stat label="Ingreso estimado" value={money(client.revenueEstimate)} detail="Servicios activos" />
-        <Stat label="Proyectos" value={`${projects.length}`} detail={`${tasks.length} tareas pendientes`} tone="blue" />
-        <Stat label="KPIs" value={`${kpis.length}`} detail={`${meetings.length} reuniones registradas`} tone="green" />
+        <Stat label="Paquete" value={packageName} detail="Receta / servicio principal" />
+        <Stat label="Proyectos" value={`${projects.length}`} detail={`${tasks.filter((task) => task.status !== "terminada").length} tareas abiertas`} tone="blue" />
+        <Stat label="KPIs" value={`${kpis.length}`} detail={`${meetings.length} sesiones registradas`} tone="green" />
       </div>
+
       <div className="mt-6 flex flex-wrap gap-2">
-        {(["resumen", "proyectos", "formularios", "expedientes", "historial"] as const).map((item) => (
+        {tabs.map((item) => (
           <Button key={item} variant={tab === item ? "primary" : "secondary"} onClick={() => setTab(item)}>{item}</Button>
         ))}
       </div>
-      {tab === "resumen" ? (
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_1fr]">
-        <Panel>
-          <PanelHeader title="Expediente" description="Contactos, dolores, servicios e historial." />
-          <div className="space-y-5 p-5">
-            <div>
-              <h3 className="text-sm font-semibold text-slate-950">Contactos clave</h3>
-              <div className="mt-3 space-y-2">
-                {contacts.map((contact) => (
-                  <div key={contact.id} className="rounded-lg border border-slate-200 p-3">
-                    <p className="font-medium">{contact.name}</p>
-                    <p className="text-sm text-slate-500">{contact.role} · {contact.email}</p>
+
+      {tab === "expediente" ? (
+        <div className="mt-6 grid gap-6 xl:grid-cols-[0.95fr_1.05fr]">
+          <Panel>
+            <PanelHeader title="Expediente del paciente-empresa" description="Contexto vivo del cliente, dolor principal, receta y equipo asignado." />
+            <div className="space-y-5 p-5">
+              <ReadOnlyFact label="Problema principal" value={client.mainPain} />
+              <ReadOnlyFact label="Receta asignada" value={packageName} />
+              <ReadOnlyFact label="Consultores LC" value={assignedConsultants.join(", ")} />
+              <ReadOnlyFact label="Investigacion previa" value={intakeForms[0]?.currentProblems || lead?.intake?.mainProblem || "Pendiente de documentar"} />
+              <div>
+                <h3 className="text-sm font-semibold text-brand-charcoal">Contactos clave</h3>
+                <div className="mt-3 space-y-2">
+                  {contacts.map((contact) => (
+                    <div key={contact.id} className="rounded-lg border border-brand-mist p-3">
+                      <p className="font-medium">{contact.name}</p>
+                      <p className="text-sm text-brand-charcoal/55">{contact.role} - {contact.email}</p>
+                    </div>
+                  ))}
+                  {!contacts.length ? <EmptyState title="Sin contactos" detail="Agrega contactos al expediente para coordinar sesiones y acuerdos." /> : null}
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          <div className="space-y-5">
+            <Panel>
+              <PanelHeader
+                title="Diagnosticos y formularios"
+                description="Formulario 1, descubrimientos y nuevos expedientes para futuros proyectos."
+                action={<Button onClick={() => setShowNewExpediente((value) => !value)}><Plus className="h-4 w-4" />Nuevo expediente</Button>}
+              />
+              {showNewExpediente ? (
+                <form
+                  className="grid gap-4 border-b border-brand-mist p-5 md:grid-cols-2"
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    const form = new FormData(event.currentTarget);
+                    addDiagnosisFromIntake({
+                      clientId: client.id,
+                      company: client.name,
+                      industry: client.industry,
+                      size: client.size,
+                      currentProblems: String(form.get("currentProblems")),
+                      objectives: String(form.get("objectives")),
+                      criticalProcesses: String(form.get("criticalProcesses")),
+                      tools: "Por actualizar",
+                      sales: "Por actualizar",
+                      operations: "Por actualizar",
+                      finance: "Por actualizar",
+                      marketing: "Por actualizar",
+                      customerService: "Por actualizar",
+                      urgency: String(form.get("urgency")) as "baja" | "media" | "alta",
+                      budget: "Por definir",
+                      priorities: String(form.get("priorities")),
+                      formType: "descubrimiento",
+                    });
+                    setShowNewExpediente(false);
+                  }}
+                >
+                  <div className="md:col-span-2"><Field label="Sintoma o problema actual"><TextArea name="currentProblems" required /></Field></div>
+                  <div className="md:col-span-2"><Field label="Objetivo de esta intervencion"><TextArea name="objectives" required /></Field></div>
+                  <Field label="Proceso critico"><TextInput name="criticalProcesses" required /></Field>
+                  <Field label="Urgencia"><Select name="urgency"><option value="media">Media</option><option value="alta">Alta</option><option value="baja">Baja</option></Select></Field>
+                  <div className="md:col-span-2"><Field label="Prioridades"><TextArea name="priorities" required /></Field></div>
+                  <div className="flex gap-2 md:col-span-2"><Button>Guardar expediente</Button><Button type="button" variant="secondary" onClick={() => setShowNewExpediente(false)}>Cancelar</Button></div>
+                </form>
+              ) : null}
+              <div className="grid gap-4 p-5">
+                {diagnoses.map((diagnosis) => (
+                  <div key={diagnosis.id} className="rounded-lg border border-brand-mist p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold">{diagnosis.company}</p>
+                        <p className="mt-1 text-sm leading-6 text-brand-charcoal/65">{diagnosis.summary}</p>
+                      </div>
+                      <div className="flex gap-2">
+                        <Badge tone={priorityTone(diagnosis.interventionPriority)}>{diagnosis.interventionPriority}</Badge>
+                        <Button variant="secondary" onClick={() => setEditingDiagnosis(diagnosis)}><Edit3 className="h-4 w-4" />Editar</Button>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <ListBlock title="Problemas detectados" items={diagnosis.detectedProblems} />
+                      <ListBlock title="Proyectos posibles" items={diagnosis.possibleProjects} />
+                    </div>
                   </div>
                 ))}
+                {!diagnoses.length ? <ActionEmptyState icon={<FolderOpen className="h-5 w-5" />} title="Sin expediente diagnostico" detail="Crea un expediente para documentar sintomas, causa raiz y tratamiento propuesto." /> : null}
               </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-950">Servicios contratados</h3>
-              <div className="mt-3 flex flex-wrap gap-2">
-                {client.services.map((service) => <Badge key={service}>{service}</Badge>)}
-              </div>
-            </div>
-            <div>
-              <h3 className="text-sm font-semibold text-slate-950">Historial</h3>
-              <div className="mt-3 space-y-3">
-                {interactions.map((interaction) => (
-                  <div key={interaction.id} className="rounded-lg bg-slate-50 p-3">
-                    <p className="text-sm font-medium">{interaction.title}</p>
-                    <p className="mt-1 text-sm text-slate-500">{interaction.detail}</p>
+            </Panel>
+
+            <Panel>
+              <PanelHeader title="Historial" description="Cambios e interacciones recientes del expediente." />
+              <div className="space-y-3 p-5">
+                {timeline.slice(0, 6).map((item) => (
+                  <div key={item.id} className="rounded-lg border border-brand-mist p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <p className="font-medium">{item.title}</p>
+                      <Badge>{shortDate(item.date)}</Badge>
+                    </div>
+                    <p className="mt-1 text-sm text-brand-charcoal/55">{item.actor}</p>
+                    <p className="mt-2 text-sm text-brand-charcoal/70">{item.detail}</p>
                   </div>
                 ))}
+                {!timeline.length ? <EmptyState title="Sin historial" detail="Los cambios importantes del cliente apareceran aqui." /> : null}
               </div>
-            </div>
+            </Panel>
           </div>
-        </Panel>
-        <Panel>
-          <PanelHeader title="Trabajo activo" description="Proyectos, tareas, KPIs y reuniones." />
-          <div className="space-y-4 p-5">
-            {projects.map((project) => (
-              <Link href={`/proyectos/${project.id}`} key={project.id} className="block rounded-lg border border-brand-mist p-4 hover:border-brand-gold">
-                <div className="flex items-center justify-between gap-3">
-                  <h3 className="font-semibold">{project.name}</h3>
-                  <Badge tone={statusTone(project.status)}>{project.status}</Badge>
-                </div>
-                <div className="mt-3 h-2 rounded-full bg-brand-mist">
-                  <div className="h-2 rounded-full bg-brand-gold" style={{ width: `${project.progress}%` }} />
-                </div>
-              </Link>
-            ))}
-            {kpis.map((kpi) => (
-              <div key={kpi.id} className="rounded-lg border border-slate-200 p-4">
-                <div className="flex items-center justify-between">
-                  <p className="font-medium">{kpi.name}</p>
-                  <Badge tone={statusTone(kpi.status)}>{kpi.status}</Badge>
-                </div>
-                <p className="mt-1 text-sm text-slate-500">Actual {kpi.currentValue}{kpi.unit} · Meta {kpi.target}{kpi.unit}</p>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      </div>
+        </div>
       ) : null}
+
+      {tab === "acuerdo" ? (
+        <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <Panel>
+            <PanelHeader title="Acuerdo de Claridad" description="Sin acuerdo firmado, no debe arrancar la ejecucion." />
+            <div className="p-5">
+              {signedAgreement ? (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+                  <div className="flex items-center gap-3">
+                    <FileCheck2 className="h-6 w-6 text-emerald-700" />
+                    <div>
+                      <p className="font-semibold text-emerald-950">Acuerdo firmado</p>
+                      <p className="text-sm text-emerald-800">Fecha de firma: {shortDate(signedAgreement.date)}</p>
+                    </div>
+                  </div>
+                  <div className="mt-5 grid gap-3 text-sm text-emerald-950">
+                    <p><span className="font-semibold">Paquete:</span> {packageName}</p>
+                    <p><span className="font-semibold">Problema:</span> {discovery?.rootProblem || client.mainPain}</p>
+                    <p><span className="font-semibold">Metrica:</span> {discovery?.successMetric || "Pendiente"}</p>
+                  </div>
+                  <Button className="mt-5" onClick={generateAgreementPdf}><FileDown className="h-4 w-4" />Descargar PDF</Button>
+                </div>
+              ) : (
+                <ActionEmptyState
+                  icon={<ClipboardCheck className="h-5 w-5" />}
+                  title="Acuerdo pendiente"
+                  detail="Genera el Acuerdo de Claridad con los datos del Formulario 2 antes de iniciar cualquier proyecto."
+                  action={<Button onClick={generateAgreementPdf}>Generar Acuerdo de Claridad</Button>}
+                />
+              )}
+            </div>
+          </Panel>
+          <Panel>
+            <PanelHeader title="Datos fuente del Formulario 2" description="Resumen usado para prellenar alcance, limites y compromisos." />
+            <div className="grid gap-4 p-5 md:grid-cols-2">
+              <ReadOnlyFact label="Modelo de negocio" value={discovery?.businessModel ?? "Pendiente"} />
+              <ReadOnlyFact label="Problema raiz" value={discovery?.rootProblem ?? "Pendiente"} />
+              <ReadOnlyFact label="Baseline comercial" value={discovery?.commercialBaseline ?? "Pendiente"} />
+              <ReadOnlyFact label="Baseline operativo" value={discovery?.operationalBaseline ?? "Pendiente"} />
+              <ReadOnlyFact label="Metrica de exito" value={discovery?.successMetric ?? "Pendiente"} />
+              <ReadOnlyFact label="Justificacion" value={discovery?.packageJustification ?? "Pendiente"} />
+            </div>
+          </Panel>
+        </div>
+      ) : null}
+
       {tab === "proyectos" ? (
         <div className="mt-6 space-y-5">
           <NewProjectForm clientId={client.id} />
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {projects.map((project) => (
-              <Link key={project.id} href={`/proyectos/${project.id}`} className="rounded-lg border border-brand-mist bg-white p-5 shadow-sm hover:border-brand-gold">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <h3 className="font-semibold">{project.name}</h3>
-                    <p className="mt-1 text-sm text-brand-charcoal/60">{project.packageType ?? "Sin paquete"}</p>
-                  </div>
-                  <Badge tone={statusTone(project.status)}>{project.status}</Badge>
-                </div>
-                <p className="mt-3 text-sm text-brand-charcoal/70">{project.objective}</p>
-                <div className="mt-4 h-2 rounded-full bg-brand-mist">
-                  <div className="h-2 rounded-full bg-brand-gold" style={{ width: `${project.progress}%` }} />
-                </div>
-              </Link>
-            ))}
-          </div>
+          {projects.length ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {projects.map((project) => {
+                const projectTasks = tasks.filter((task) => task.projectId === project.id);
+                return (
+                  <Link key={project.id} href={`/proyectos/${project.id}`} className="rounded-lg border border-brand-mist bg-white p-5 shadow-sm hover:border-brand-gold">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <h3 className="font-semibold">{project.name}</h3>
+                        <p className="mt-1 text-sm text-brand-charcoal/60">{project.packageType ?? "Sin paquete"}</p>
+                      </div>
+                      <Badge tone={statusTone(project.status)}>{project.status}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm text-brand-charcoal/70">{project.objective}</p>
+                    <div className="mt-4 grid gap-2 text-xs text-brand-charcoal/60">
+                      <p>Fase LEAD: {(project.leadPhase ?? "listen").toUpperCase()}</p>
+                      <p>{projectTasks.length} tareas internas</p>
+                      <p>Causa raiz: {project.rootCause || "en investigacion"}</p>
+                    </div>
+                    <div className="mt-4 h-2 rounded-full bg-brand-mist"><div className="h-2 rounded-full bg-brand-gold" style={{ width: `${project.progress}%` }} /></div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <ActionEmptyState icon={<GanttChart className="h-5 w-5" />} title="No hay proyectos activos" detail="Los proyectos se crean desde esta ficha cuando existe acuerdo y paquete definido." action={<Button onClick={() => setShowNewExpediente(false)}>Crear desde formulario superior</Button>} />
+          )}
         </div>
       ) : null}
-      {tab === "formularios" ? (
-        <div className="mt-6 grid gap-5 xl:grid-cols-2">
-          {intakeForms.map((form) => (
-            <Panel key={form.id}>
-              <PanelHeader
-                title={form.formType === "descubrimiento" ? "Formulario de descubrimiento" : "Filtro inicial"}
-                description={`${form.company} · ${shortDate(form.createdAt)}`}
-                action={<Badge tone={priorityTone(form.urgency)}>{form.urgency}</Badge>}
-              />
-              <div className="grid gap-4 p-5 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <p className="text-sm font-semibold text-brand-charcoal">Problemas actuales</p>
-                  <p className="mt-1 text-sm leading-6 text-brand-charcoal/70">{form.currentProblems}</p>
+
+      {tab === "sesiones" ? (
+        <div className="mt-6 space-y-5">
+          <div className="flex justify-end">
+            {lead ? (
+              <Link href={`/sesion/lead/${lead.id}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-navy px-3 text-sm font-medium text-white shadow-sm shadow-brand-navy/20">
+                <CalendarPlus className="h-4 w-4" />Nueva sesion
+              </Link>
+            ) : (
+              <Button variant="secondary" disabled><CalendarPlus className="h-4 w-4" />Nueva sesion</Button>
+            )}
+          </div>
+          {meetings.length ? (
+            <div className="grid gap-4">
+              {meetings.map((meeting) => (
+                <Panel key={meeting.id}>
+                  <PanelHeader title={meeting.title} description={`${shortDate(meeting.date)} - ${meeting.owners.join(", ")}`} />
+                  <div className="grid gap-4 p-5 md:grid-cols-3">
+                    <div className="md:col-span-3"><p className="text-sm leading-6 text-brand-charcoal/70">{meeting.minutes}</p></div>
+                    <ListBlock title="Acuerdos" items={meeting.agreements} />
+                    <ListBlock title="Decisiones" items={meeting.decisions} />
+                    <ListBlock title="Riesgos" items={meeting.risks} />
+                    <ReadOnlyFact label="Proxima sesion" value={meeting.nextMeeting} />
+                  </div>
+                </Panel>
+              ))}
+            </div>
+          ) : (
+            <ActionEmptyState icon={<Video className="h-5 w-5" />} title="Sin sesiones registradas" detail="Cada llamada debe guardar agenda, notas, hallazgos, acuerdos y proximos pasos." action={lead ? <Link href={`/sesion/lead/${lead.id}`} className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-navy px-3 text-sm font-medium text-white">Abrir Modo Sesion</Link> : undefined} />
+          )}
+        </div>
+      ) : null}
+
+      {tab === "kpis" ? (
+        <div className="mt-6 grid gap-4 md:grid-cols-2">
+          {kpis.map((kpi) => (
+            <Panel key={kpi.id}>
+              <PanelHeader title={kpi.name} description={kpi.description} action={<Badge tone={statusTone(kpi.status)}>{kpi.status}</Badge>} />
+              <div className="space-y-4 p-5">
+                <div className="grid gap-3 md:grid-cols-3">
+                  <Stat label="Baseline" value={kpi.source} detail={kpi.frequency} />
+                  <Stat label="Actual" value={`${kpi.currentValue}${kpi.unit}`} detail={kpi.owner} tone="blue" />
+                  <Stat label="Meta" value={`${kpi.target}${kpi.unit}`} detail={kpi.formula} tone="green" />
                 </div>
-                <div className="md:col-span-2">
-                  <p className="text-sm font-semibold text-brand-charcoal">Objetivos</p>
-                  <p className="mt-1 text-sm leading-6 text-brand-charcoal/70">{form.objectives}</p>
-                </div>
-                <ListBlock title="Procesos críticos" items={[form.criticalProcesses]} />
-                <ListBlock title="Prioridades" items={[form.priorities]} />
-                <ListBlock title="Herramientas" items={[form.tools]} />
-                <ListBlock title="Presupuesto" items={[form.budget]} />
-                <div className="md:col-span-2 grid gap-3 md:grid-cols-3">
-                  <div className="rounded-lg bg-brand-paper p-3"><p className="text-xs text-brand-charcoal/55">Ventas</p><p className="mt-1 text-sm">{form.sales}</p></div>
-                  <div className="rounded-lg bg-brand-paper p-3"><p className="text-xs text-brand-charcoal/55">Operaciones</p><p className="mt-1 text-sm">{form.operations}</p></div>
-                  <div className="rounded-lg bg-brand-paper p-3"><p className="text-xs text-brand-charcoal/55">Finanzas</p><p className="mt-1 text-sm">{form.finance}</p></div>
-                </div>
+                <KpiTrend measurements={data.kpiMeasurements.filter((item) => item.kpiId === kpi.id)} target={kpi.target} />
               </div>
             </Panel>
           ))}
-          {!intakeForms.length ? (
-            <EmptyState title="Sin formularios" detail="Crea un expediente nuevo o convierte un lead ganado para guardar formularios del cliente." />
-          ) : null}
+          {!kpis.length ? <ActionEmptyState icon={<LineChart className="h-5 w-5" />} title="Sin indicadores registrados" detail="Los KPIs se asignan al crear un proyecto o desde una receta validada." action={<Button onClick={() => setTab("proyectos")}>Ir a Proyectos</Button>} /> : null}
         </div>
       ) : null}
-      {tab === "expedientes" ? (
-        <div className="mt-6 space-y-5">
-          <div className="flex justify-end">
-            <Button onClick={() => setShowNewExpediente((value) => !value)}><Plus className="h-4 w-4" />Nuevo expediente</Button>
+
+      {tab === "finanzas" ? (
+        <div className="mt-6 grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-1">
+            <Stat label="Cotizacion" value={money(projectRevenue || client.revenueEstimate)} detail={packageName} tone="blue" />
+            <Stat label="Cobrado" value={money(paymentsReceived)} detail="Demo: pagos aplicados" tone="green" />
+            <Stat label="Gastos" value={money(projectExpenses)} detail="Costos internos estimados" tone="yellow" />
+            <Stat label="Margen" value={money(margin)} detail="Ingreso cobrado menos gasto" tone={margin >= 0 ? "green" : "red"} />
           </div>
-          {showNewExpediente ? (
-            <Panel>
-              <PanelHeader title="Nuevo expediente clínico-empresarial" description="Para futuros proyectos, síntomas nuevos o seguimiento de evolución." />
-              <form
-                className="grid gap-4 p-5 md:grid-cols-2"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const form = new FormData(event.currentTarget);
-                  addDiagnosisFromIntake({
-                    clientId: client.id,
-                    company: client.name,
-                    industry: client.industry,
-                    size: client.size,
-                    currentProblems: String(form.get("currentProblems")),
-                    objectives: String(form.get("objectives")),
-                    criticalProcesses: String(form.get("criticalProcesses")),
-                    tools: "Por actualizar",
-                    sales: "Por actualizar",
-                    operations: "Por actualizar",
-                    finance: "Por actualizar",
-                    marketing: "Por actualizar",
-                    customerService: "Por actualizar",
-                    urgency: String(form.get("urgency")) as "baja" | "media" | "alta",
-                    budget: "Por definir",
-                    priorities: String(form.get("priorities")),
-                    formType: "descubrimiento",
-                  });
-                  setShowNewExpediente(false);
-                }}
-              >
-                <div className="md:col-span-2"><Field label="Síntoma o problema actual"><TextArea name="currentProblems" required /></Field></div>
-                <div className="md:col-span-2"><Field label="Objetivo de esta intervención"><TextArea name="objectives" required /></Field></div>
-                <Field label="Proceso crítico"><TextInput name="criticalProcesses" required /></Field>
-                <Field label="Urgencia"><Select name="urgency"><option value="media">Media</option><option value="alta">Alta</option><option value="baja">Baja</option></Select></Field>
-                <div className="md:col-span-2"><Field label="Prioridades"><TextArea name="priorities" required /></Field></div>
-                <div className="md:col-span-2"><Button>Guardar expediente</Button></div>
-              </form>
-            </Panel>
-          ) : null}
-          <div className="grid gap-4 xl:grid-cols-2">
-            {diagnoses.map((diagnosis) => (
-              <Panel key={diagnosis.id}>
-                <PanelHeader
-                  title={diagnosis.company}
-                  description={diagnosis.summary}
-                  action={
-                    <div className="flex items-center gap-2">
-                      <Badge tone={priorityTone(diagnosis.interventionPriority)}>{diagnosis.interventionPriority}</Badge>
-                      <Button variant="secondary" onClick={() => setEditingDiagnosis(diagnosis)}>
-                        <Edit3 className="h-4 w-4" />
-                        Editar
-                      </Button>
+          <Panel>
+            <PanelHeader title="Estado financiero del cliente" description="Vista interna LC y resumen para estado de cuenta." />
+            <div className="space-y-3 p-5">
+              {projects.map((project) => (
+                <div key={project.id} className="rounded-lg border border-brand-mist p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold">{project.name}</p>
+                      <p className="text-sm text-brand-charcoal/60">{project.packageType ?? "Sin paquete"}</p>
                     </div>
-                  }
-                />
-                <div className="grid gap-4 p-5 md:grid-cols-2">
-                  <ListBlock title="Problemas detectados" items={diagnosis.detectedProblems} />
-                  <ListBlock title="Oportunidades" items={diagnosis.opportunities} />
-                  <ListBlock title="KPIs sugeridos" items={diagnosis.suggestedKpis} />
-                  <ListBlock title="Proyectos posibles" items={diagnosis.possibleProjects} />
+                    <Badge tone="blue">{money(project.budget)}</Badge>
+                  </div>
+                  <div className="mt-3 grid gap-3 text-sm text-brand-charcoal/65 md:grid-cols-3">
+                    <p>Cobrado: {money(Math.round(project.budget * 0.45))}</p>
+                    <p>Pendiente: {money(Math.round(project.budget * 0.55))}</p>
+                    <p>Gasto estimado: {money(Math.round(project.budget * 0.28))}</p>
+                  </div>
                 </div>
-              </Panel>
-            ))}
-          </div>
+              ))}
+              {!projects.length ? <ActionEmptyState icon={<WalletCards className="h-5 w-5" />} title="Sin finanzas de proyecto" detail="La cotizacion se genera desde el paquete seleccionado al crear un proyecto." action={<Button onClick={() => setTab("proyectos")}>Ir a Proyectos</Button>} /> : null}
+            </div>
+          </Panel>
         </div>
       ) : null}
-      {tab === "historial" ? (
-        <Panel className="mt-6">
-          <PanelHeader title="Historial de cambios" description="Bitácora del paciente-empresa." />
-          <div className="space-y-3 p-5">
-            {[...history, ...interactions.map((item) => ({ id: item.id, date: item.date, actor: "LC", title: item.title, detail: item.detail }))].map((item) => (
-              <div key={item.id} className="rounded-lg border border-brand-mist p-4">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="font-medium">{item.title}</p>
-                  <Badge>{shortDate(item.date)}</Badge>
-                </div>
-                <p className="mt-1 text-sm text-brand-charcoal/55">{item.actor}</p>
-                <p className="mt-2 text-sm text-brand-charcoal/70">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </Panel>
-      ) : null}
+
       {editingDiagnosis ? (
         <DiagnosisEditor
           diagnosis={editingDiagnosis}
@@ -1764,7 +1905,6 @@ export function ClientDetailScreen() {
     </>
   );
 }
-
 function DiagnosisEditor({
   diagnosis,
   onClose,
@@ -2308,6 +2448,23 @@ export function ProjectDetailScreen() {
             </Field>
             <Field label="Avance">
               <TextInput type="number" min="0" max="100" value={project.progress} onChange={(event) => updateProject(project.id, { progress: Number(event.target.value) })} />
+            </Field>
+            <Field label="Fase LEAD">
+              <Select value={project.leadPhase ?? "listen"} onChange={(event) => updateProject(project.id, { leadPhase: event.target.value as NonNullable<typeof project.leadPhase> })}>
+                <option value="listen">L - Listen</option>
+                <option value="evaluate">E - Evaluate</option>
+                <option value="act">A - Act</option>
+                <option value="develop">D - Develop</option>
+              </Select>
+            </Field>
+            <Field label="Hipotesis inicial">
+              <TextArea value={project.initialHypothesis ?? ""} onChange={(event) => updateProject(project.id, { initialHypothesis: event.target.value })} />
+            </Field>
+            <Field label="Hallazgos reales">
+              <TextArea value={project.realFindings ?? ""} onChange={(event) => updateProject(project.id, { realFindings: event.target.value })} />
+            </Field>
+            <Field label="Causa raiz">
+              <TextArea value={project.rootCause ?? ""} onChange={(event) => updateProject(project.id, { rootCause: event.target.value })} />
             </Field>
             <ListBlock title="Riesgos" items={project.risks} />
           </div>

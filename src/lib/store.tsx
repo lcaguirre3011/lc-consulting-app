@@ -34,13 +34,30 @@ function today() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function normalizeLeadStage(stage: string): LeadStage {
+  if (stage === "contacto inicial") return "formulario 1 enviado";
+  if (stage === "diagnostico agendado") return "sesion inicial agendada";
+  return stage as LeadStage;
+}
+
 function normalizeData(data: AppData): AppData {
   return {
     ...demoData,
     ...data,
+    leads: (data.leads ?? demoData.leads).map((lead) => ({
+      ...lead,
+      stage: normalizeLeadStage(lead.stage),
+    })),
     clients: (data.clients ?? demoData.clients).map((client) => ({
       ...client,
       expedienteIds: client.expedienteIds ?? [],
+    })),
+    projects: (data.projects ?? demoData.projects).map((project) => ({
+      ...project,
+      leadPhase: project.leadPhase ?? "listen",
+      initialHypothesis: project.initialHypothesis ?? "",
+      realFindings: project.realFindings ?? "",
+      rootCause: project.rootCause ?? "",
     })),
     reports: data.reports ?? demoData.reports,
     clientHistory: data.clientHistory ?? demoData.clientHistory,

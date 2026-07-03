@@ -3,15 +3,9 @@
 import { StoreProvider, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
-  Activity,
   ChevronLeft,
   ChevronRight,
-  BarChart3,
-  BriefcaseBusiness,
-  CalendarDays,
-  FileText,
   LayoutDashboard,
-  ListChecks,
   Menu,
   NotebookTabs,
   Settings,
@@ -19,6 +13,7 @@ import {
   Users,
   X,
   Video,
+  type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -26,43 +21,17 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "./ui";
 
-const navSections = [
+
+const navSections: { label?: string; items: { href: string; label: string; icon: LucideIcon }[] }[] = [
+  { items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] },
   {
-    items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
-  },
-  {
-    label: "COMERCIAL",
     items: [
       { href: "/crm", label: "CRM", icon: Target },
       { href: "/clientes", label: "Clientes", icon: Users },
-    ],
-  },
-  {
-    label: "EJECUCIÓN",
-    items: [
-      { href: "/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
-      { href: "/gantt", label: "Gantt", icon: Activity },
-      { href: "/tareas", label: "Tareas", icon: ListChecks },
-    ],
-  },
-  {
-    label: "MEDICIÓN",
-    items: [
-      { href: "/kpis", label: "KPIs", icon: BarChart3 },
-      { href: "/reportes", label: "Reportes", icon: FileText },
-      { href: "/diagnosticos", label: "Diagnósticos", icon: FileText },
-    ],
-  },
-  {
-    label: "EQUIPO",
-    items: [
-      { href: "/consultores", label: "Consultores", icon: CalendarDays },
       { href: "/recetario", label: "Recetario", icon: NotebookTabs },
     ],
   },
-  {
-    items: [{ href: "/configuracion", label: "Configuración", icon: Settings }],
-  },
+  { items: [{ href: "/configuracion", label: "Configuracion", icon: Settings }] },
 ];
 
 function ShellContent({ children }: { children: ReactNode }) {
@@ -73,7 +42,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const isPublicLeadForm = pathname.startsWith("/formularios/lead/");
   const isSessionMode = pathname.startsWith("/sesion/");
-  const activeSessionLead = data.leads.find((lead) => lead.stage === "diagnostico agendado");
+  const activeSessionLead = data.leads.find((lead) => lead.stage === "sesion inicial agendada");
 
   useEffect(() => {
     if (isReady && !user && pathname !== "/login" && !isPublicLeadForm) router.replace("/login");

@@ -3,12 +3,14 @@ export type Health = "verde" | "amarillo" | "rojo";
 export type Priority = "baja" | "media" | "alta" | "critica";
 export type LeadStage =
   | "nuevo lead"
-  | "contacto inicial"
-  | "diagnostico agendado"
+  | "formulario 1 enviado"
+  | "investigacion en progreso"
+  | "sesion inicial agendada"
   | "propuesta enviada"
   | "negociacion"
   | "cliente ganado"
   | "perdido";
+export type LeadMethodPhase = "listen" | "evaluate" | "act" | "develop";
 export type ProjectStatus =
   | "planeado"
   | "en progreso"
@@ -246,6 +248,11 @@ export interface Project {
   risks: string[];
   kpiIds: string[];
   packageType?: PackageType;
+  leadPhase?: LeadMethodPhase;
+  initialHypothesis?: string;
+  realFindings?: string;
+  rootCause?: string;
+  assignedRecipeId?: string;
 }
 
 export interface Task {

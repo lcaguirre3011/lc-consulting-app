@@ -97,6 +97,7 @@ export interface Lead {
   id: string;
   company: string;
   contactName: string;
+  contactRole?: string;
   email: string;
   phone: string;
   stage: LeadStage;
@@ -104,6 +105,14 @@ export interface Lead {
   closeProbability: number;
   nextStep: string;
   source: string;
+  industry?: string;
+  city?: string;
+  affectedArea?: string;
+  urgency?: "baja" | "media" | "alta";
+  budget?: "definido" | "evaluando" | "sin presupuesto";
+  decisionMaker?: string;
+  desiredOutcome?: string;
+  assignedTo?: string;
   lastInteraction: string;
   intake?: LeadIntake;
   discovery?: DiscoveryForm;

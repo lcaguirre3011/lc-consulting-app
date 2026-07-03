@@ -516,7 +516,8 @@ const crmPipelineColumns: { label: string; description: string; stages: LeadStag
   { label: "Diagnostico", description: "Sesion inicial", stages: ["sesion inicial agendada"], target: "sesion inicial agendada" },
   { label: "Propuesta", description: "Paquete recomendado", stages: ["propuesta enviada"], target: "propuesta enviada" },
   { label: "Negociacion", description: "Ajuste y cierre", stages: ["negociacion"], target: "negociacion" },
-  { label: "Cliente ganado", description: "Conversion automatica", stages: ["cliente ganado"], target: "cliente ganado" },
+  { label: "Cliente ganado", description: "Crear expediente", stages: ["cliente ganado"], target: "cliente ganado" },
+  { label: "Perdido", description: "No fit o pausado", stages: ["perdido"], target: "perdido" },
 ];
 
 type CrmTab = "pipeline" | "leads" | "clientes" | "seguimientos" | "formularios" | "reportes";
@@ -534,11 +535,11 @@ function leadFitLabel(lead: Lead) {
 }
 
 function leadIndustry(lead: Lead) {
-  return lead.intake?.industry ?? lead.source ?? "Sin industria";
+  return lead.intake?.industry ?? lead.industry ?? lead.source ?? "Sin industria";
 }
 
 function leadPain(lead: Lead) {
-  return lead.intake?.mainProblem ?? lead.nextStep ?? "Dolor pendiente de documentar";
+  return lead.intake?.mainProblem ?? lead.desiredOutcome ?? lead.nextStep ?? "Dolor pendiente de documentar";
 }
 
 export function CrmScreen() {
@@ -549,6 +550,10 @@ export function CrmScreen() {
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
   const [createdLeadLink, setCreatedLeadLink] = useState(false);
   const [copiedLeadId, setCopiedLeadId] = useState<string | null>(null);
+  const [conversionLead, setConversionLead] = useState<Lead | null>(null);
+  const [responsibleFilter, setResponsibleFilter] = useState("todos");
+  const [industryFilter, setIndustryFilter] = useState("todas");
+  const [dateFilter, setDateFilter] = useState("todas");
 
   const today = new Date().toISOString().slice(0, 10);
   const activeLeads = data.leads.filter((lead) => !["cliente ganado", "perdido"].includes(lead.stage));
@@ -561,6 +566,17 @@ export function CrmScreen() {
   const staleLeads = activeLeads.filter((lead) => daysLate(lead.lastInteraction) >= 7);
   const wonLeads = data.leads.filter((lead) => lead.stage === "cliente ganado");
   const formLeads = data.leads.filter((lead) => lead.stage !== "perdido");
+  const responsibleOptions = Array.from(new Set(data.leads.map((lead) => lead.assignedTo).filter(Boolean))) as string[];
+  const industryOptions = Array.from(new Set(data.leads.map((lead) => leadIndustry(lead)).filter(Boolean)));
+  const visibleLeads = data.leads.filter((lead) => {
+    const matchesResponsible = responsibleFilter === "todos" || lead.assignedTo === responsibleFilter;
+    const matchesIndustry = industryFilter === "todas" || leadIndustry(lead) === industryFilter;
+    const matchesDate =
+      dateFilter === "todas" ||
+      (dateFilter === "hoy" && lead.lastInteraction === today) ||
+      (dateFilter === "7" && daysLate(lead.lastInteraction) <= 7);
+    return matchesResponsible && matchesIndustry && matchesDate;
+  });
   const crmTabs: { id: CrmTab; label: string }[] = [
     { id: "pipeline", label: "Pipeline" },
     { id: "leads", label: "Leads" },
@@ -575,6 +591,16 @@ export function CrmScreen() {
     await navigator.clipboard.writeText(link);
     setCopiedLeadId(leadId);
     window.setTimeout(() => setCopiedLeadId(null), 1800);
+  };
+
+  const moveLeadThroughPipeline = (leadId: string, stage: LeadStage) => {
+    const lead = data.leads.find((item) => item.id === leadId);
+    if (!lead) return;
+    if (stage === "cliente ganado" && !lead.convertedClientId) {
+      setConversionLead(lead);
+      return;
+    }
+    moveLead(leadId, stage);
   };
 
   return (
@@ -624,6 +650,28 @@ export function CrmScreen() {
         </div>
       </div>
 
+      <div className="grid gap-3 rounded-lg border border-brand-charcoal/10 bg-white p-3 shadow-sm md:grid-cols-3">
+        <Field label="Responsable">
+          <Select value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.currentTarget.value)}>
+            <option value="todos">Todos los responsables</option>
+            {responsibleOptions.map((item) => <option key={item}>{item}</option>)}
+          </Select>
+        </Field>
+        <Field label="Industria">
+          <Select value={industryFilter} onChange={(event) => setIndustryFilter(event.currentTarget.value)}>
+            <option value="todas">Todas las industrias</option>
+            {industryOptions.map((item) => <option key={item}>{item}</option>)}
+          </Select>
+        </Field>
+        <Field label="Fecha">
+          <Select value={dateFilter} onChange={(event) => setDateFilter(event.currentTarget.value)}>
+            <option value="todas">Toda la actividad</option>
+            <option value="hoy">Actividad de hoy</option>
+            <option value="7">Ultimos 7 dias</option>
+          </Select>
+        </Field>
+      </div>
+
       {showForm ? (
         <QuickLeadForm
           onSubmit={(lead) => {
@@ -649,9 +697,9 @@ export function CrmScreen() {
       ) : null}
 
       {tab === "pipeline" ? (
-        <div className="grid gap-3 overflow-x-auto pb-2 xl:grid-cols-6">
+        <div className="grid gap-3 overflow-x-auto pb-2 xl:grid-cols-7">
           {crmPipelineColumns.map((column) => {
-            const leads = data.leads.filter((lead) => column.stages.includes(lead.stage));
+            const leads = visibleLeads.filter((lead) => column.stages.includes(lead.stage));
             const columnValue = leads.reduce((sum, lead) => sum + lead.estimatedValue, 0);
             return (
               <section
@@ -659,7 +707,7 @@ export function CrmScreen() {
                 className="min-w-72 rounded-lg border border-brand-charcoal/10 bg-white/80 shadow-sm"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => {
-                  if (draggingLeadId) moveLead(draggingLeadId, column.target);
+                  if (draggingLeadId) moveLeadThroughPipeline(draggingLeadId, column.target);
                   setDraggingLeadId(null);
                 }}
               >
@@ -675,17 +723,18 @@ export function CrmScreen() {
                 </div>
                 <div className="min-h-80 space-y-3 p-3">
                   {leads.map((lead) => (
-                    <button
+                    <div
                       key={lead.id}
                       draggable
                       onDragStart={() => setDraggingLeadId(lead.id)}
                       onDragEnd={() => setDraggingLeadId(null)}
-                      onClick={() => setEditingLead(lead)}
                       className="group w-full rounded-lg border border-brand-charcoal/10 bg-white p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-brand-gold/70 hover:shadow-md"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
-                          <h3 className="truncate text-sm font-semibold text-brand-charcoal">{lead.company}</h3>
+                          <button type="button" onClick={() => setEditingLead(lead)} className="block max-w-full text-left">
+                            <h3 className="truncate text-sm font-semibold text-brand-charcoal hover:text-brand-navy">{lead.company}</h3>
+                          </button>
                           <p className="mt-1 truncate text-xs text-brand-charcoal/50">{leadIndustry(lead)} - {lead.contactName}</p>
                         </div>
                         <GripVertical className="h-4 w-4 shrink-0 text-brand-charcoal/25 transition group-hover:text-brand-charcoal/50" />
@@ -710,7 +759,19 @@ export function CrmScreen() {
                         <p className="mt-1 text-xs leading-5 text-brand-charcoal/65">{lead.nextStep}</p>
                         <p className="mt-2 text-xs text-brand-charcoal/40">Ultima actividad: {shortDate(lead.lastInteraction)}</p>
                       </div>
-                    </button>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <Button variant="ghost" onClick={() => setEditingLead(lead)}>Editar</Button>
+                        {lead.stage === "sesion inicial agendada" ? (
+                          <Link
+                            href={`/sesion/lead/${lead.id}`}
+                            className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-navy px-3 text-sm font-medium text-white shadow-sm shadow-brand-navy/20"
+                          >
+                            <Video className="h-4 w-4" />
+                            Iniciar sesion
+                          </Link>
+                        ) : null}
+                      </div>
+                    </div>
                   ))}
                   {!leads.length ? (
                     <div className="rounded-lg border border-dashed border-brand-mist p-5 text-center text-sm text-brand-charcoal/45">Sin oportunidades en esta etapa</div>
@@ -740,11 +801,19 @@ export function CrmScreen() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-mist">
-                {data.leads.map((lead) => (
+                {visibleLeads.map((lead) => (
                   <tr key={lead.id} className="hover:bg-brand-gold/10">
                     <td className="px-5 py-4"><TextInput className="min-w-44" defaultValue={lead.company} onBlur={(event) => updateLead(lead.id, { company: event.currentTarget.value })} /></td>
                     <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactName} onBlur={(event) => updateLead(lead.id, { contactName: event.currentTarget.value })} /></td>
-                    <td className="px-5 py-4"><Badge tone={statusTone(lead.stage)}>{lead.stage}</Badge></td>
+                    <td className="px-5 py-4">
+                      <Select
+                        className="min-w-48"
+                        value={lead.stage}
+                        onChange={(event) => moveLeadThroughPipeline(lead.id, event.currentTarget.value as LeadStage)}
+                      >
+                        {leadStages.map((item) => <option key={item}>{item}</option>)}
+                      </Select>
+                    </td>
                     <td className="px-5 py-4 max-w-72 text-brand-charcoal/65">{leadPain(lead)}</td>
                     <td className="px-5 py-4">
                       <Select className="min-w-56" value={lead.recommendedPackage ?? ""} onChange={(event) => updateLead(lead.id, { recommendedPackage: event.currentTarget.value ? (event.currentTarget.value as PackageType) : undefined })}>
@@ -829,45 +898,240 @@ export function CrmScreen() {
           }}
         />
       ) : null}
+
+      {conversionLead ? (
+        <LeadConversionModal
+          lead={conversionLead}
+          onClose={() => setConversionLead(null)}
+          onConfirm={(patch) => {
+            updateLead(conversionLead.id, patch);
+            moveLead(conversionLead.id, "cliente ganado");
+            setConversionLead(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
+
+function LeadConversionModal({
+  lead,
+  onClose,
+  onConfirm,
+}: {
+  lead: Lead;
+  onClose: () => void;
+  onConfirm: (patch: Partial<Lead>) => void;
+}) {
+  const [step, setStep] = useState(1);
+  const [packageName, setPackageName] = useState<PackageType>(lead.recommendedPackage ?? consultingPackages[1].name);
+  const packageData = consultingPackages.find((item) => item.name === packageName) ?? consultingPackages[1];
+  const [price, setPrice] = useState(lead.estimatedValue || packageData.price);
+  const [nextProject, setNextProject] = useState(`Proyecto LEAD - ${lead.company}`);
+  const steps = ["Expediente", "Paquete", "Acuerdo", "Proyecto"];
+
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-charcoal/60 p-4">
+      <div className="w-full max-w-3xl rounded-lg bg-white shadow-xl">
+        <div className="border-b border-brand-mist px-5 py-4">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <Badge tone="green">Cliente ganado</Badge>
+              <h2 className="mt-2 text-lg font-semibold text-brand-charcoal">Convertir {lead.company} a cliente</h2>
+              <p className="mt-1 text-sm text-brand-charcoal/60">Se creara el expediente empresarial y quedara listo para Acuerdo de Claridad.</p>
+            </div>
+            <Button variant="ghost" onClick={onClose}>Cerrar</Button>
+          </div>
+          <div className="mt-4 grid grid-cols-4 gap-2">
+            {steps.map((item, index) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setStep(index + 1)}
+                className={cn(
+                  "rounded-md border px-2 py-2 text-xs font-semibold",
+                  step === index + 1 ? "border-brand-navy bg-brand-navy text-white" : "border-brand-mist bg-brand-paper text-brand-charcoal/60",
+                )}
+              >
+                {index + 1}. {item}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="min-h-80 p-5">
+          {step === 1 ? (
+            <div className="grid gap-3 md:grid-cols-2">
+              <ConversionFact label="Empresa" value={lead.company} />
+              <ConversionFact label="Contacto" value={`${lead.contactName}${lead.contactRole ? ` - ${lead.contactRole}` : ""}`} />
+              <ConversionFact label="Industria" value={leadIndustry(lead)} />
+              <ConversionFact label="Responsable LC" value={lead.assignedTo ?? "Luis Carlos Aguirre"} />
+              <div className="md:col-span-2"><ConversionFact label="Dolor principal" value={leadPain(lead)} /></div>
+              <div className="md:col-span-2"><ConversionFact label="Resultado deseado" value={lead.intake?.expectedResult ?? lead.desiredOutcome ?? "Pendiente de documentar"} /></div>
+            </div>
+          ) : null}
+
+          {step === 2 ? (
+            <div className="grid gap-4 md:grid-cols-2">
+              <Field label="Paquete contratado">
+                <Select value={packageName} onChange={(event) => {
+                  const next = event.currentTarget.value as PackageType;
+                  setPackageName(next);
+                  setPrice(consultingPackages.find((item) => item.name === next)?.price ?? price);
+                }}>
+                  {consultingPackages.map((item) => <option key={item.id}>{item.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Precio acordado"><TextInput type="number" value={price} onChange={(event) => setPrice(Number(event.currentTarget.value))} /></Field>
+              <div className="rounded-lg border border-brand-mist bg-brand-paper p-4 md:col-span-2">
+                <p className="text-sm font-semibold text-brand-charcoal">{packageData.duration}</p>
+                <p className="mt-2 text-sm leading-6 text-brand-charcoal/65">{packageData.description}</p>
+              </div>
+            </div>
+          ) : null}
+
+          {step === 3 ? (
+            <div className="space-y-4">
+              <ActionEmptyState
+                icon={<FileCheck2 className="h-5 w-5" />}
+                title="Acuerdo de Claridad preparado"
+                detail="En Sprint 3 se conectara IA y PDF. Por ahora se guarda el expediente con los datos necesarios para generarlo."
+              />
+              <div className="grid gap-3 md:grid-cols-3">
+                <ConversionFact label="Base" value={lead.discovery?.rootProblem ?? leadPain(lead)} />
+                <ConversionFact label="Paquete" value={packageName} />
+                <ConversionFact label="Valor" value={money(price)} />
+              </div>
+            </div>
+          ) : null}
+
+          {step === 4 ? (
+            <div className="space-y-4">
+              <Field label="Primer proyecto sugerido"><TextInput value={nextProject} onChange={(event) => setNextProject(event.currentTarget.value)} /></Field>
+              <div className="grid gap-3 md:grid-cols-4">
+                {["L - Listen", "E - Evaluate", "A - Act", "D - Develop"].map((item) => (
+                  <div key={item} className="rounded-lg border border-brand-mist bg-white p-4 text-center text-sm font-semibold text-brand-charcoal">{item}</div>
+                ))}
+              </div>
+              <p className="text-sm leading-6 text-brand-charcoal/60">
+                El expediente se crea ahora. El proyecto formal queda bloqueado hasta tener Acuerdo de Claridad firmado, como regla operativa de LC.
+              </p>
+            </div>
+          ) : null}
+        </div>
+        <div className="flex justify-between border-t border-brand-mist px-5 py-4">
+          <Button variant="secondary" disabled={step === 1} onClick={() => setStep((value) => Math.max(1, value - 1))}>Anterior</Button>
+          {step < 4 ? (
+            <Button onClick={() => setStep((value) => Math.min(4, value + 1))}>Siguiente</Button>
+          ) : (
+            <Button onClick={() => onConfirm({
+              recommendedPackage: packageName,
+              estimatedValue: price,
+              nextStep: `Generar Acuerdo de Claridad y preparar ${nextProject}`,
+            })}>
+              <CheckCircle2 className="h-4 w-4" />
+              Crear expediente
+            </Button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ConversionFact({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="rounded-lg border border-brand-mist bg-brand-paper p-4">
+      <p className="text-[11px] font-semibold uppercase text-brand-charcoal/45">{label}</p>
+      <p className="mt-2 text-sm font-medium leading-6 text-brand-charcoal">{value}</p>
+    </div>
+  );
+}
+
 function QuickLeadForm({
   onSubmit,
 }: {
   onSubmit: (lead: Omit<Lead, "id" | "lastInteraction">) => void;
 }) {
+  const sources = ["Manual", "Referido", "LinkedIn", "Redes sociales", "Landing page", "Base de datos", "B2B", "Evento"];
+  const areas = ["Comercial", "Operaciones", "Finanzas", "Marketing", "Servicio al cliente", "Liderazgo", "Digital"];
+  const responsibles = ["Luis Carlos Aguirre", "Mayte", "Laura Cardenas"];
+
   return (
     <Panel className="mb-6">
       <PanelHeader
         title="Nuevo lead"
-        description="Captura los datos mínimos y envía el link del filtro inicial al prospecto."
+        description="Captura la oportunidad, crea el lead y copia el link del Formulario 1 para enviarlo al prospecto."
       />
       <form
-        className="grid gap-4 p-5 md:grid-cols-2"
+        className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3"
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
+          const source = String(form.get("source") || "Manual");
+          const industry = String(form.get("industry") || "");
+          const mainProblem = String(form.get("mainProblem") || "");
+          const desiredOutcome = String(form.get("desiredOutcome") || "");
+          const budget = String(form.get("budget") || "evaluando") as "definido" | "evaluando" | "sin presupuesto";
+          const urgency = String(form.get("urgency") || "media") as "baja" | "media" | "alta";
+          const fit =
+            budget === "definido" && urgency !== "baja"
+              ? "verde"
+              : budget === "sin presupuesto"
+                ? "rojo"
+                : "amarillo";
+
           onSubmit({
             company: String(form.get("company") || "Prospecto sin empresa"),
             contactName: String(form.get("contactName") || "Contacto pendiente"),
+            contactRole: String(form.get("contactRole") || ""),
             email: String(form.get("email") || ""),
             phone: String(form.get("phone") || ""),
             stage: "formulario 1 enviado",
             estimatedValue: Number(form.get("estimatedValue") || 0),
-            closeProbability: 10,
-            nextStep: "Esperar respuesta del Formulario 1 LC",
-            source: String(form.get("source") || "Manual"),
+            closeProbability: Number(form.get("closeProbability") || 15),
+            nextStep: String(form.get("nextStep") || "Esperar respuesta del Formulario 1 LC"),
+            source,
+            industry,
+            city: String(form.get("city") || ""),
+            affectedArea: String(form.get("affectedArea") || ""),
+            urgency,
+            budget,
+            decisionMaker: String(form.get("decisionMaker") || ""),
+            desiredOutcome,
+            assignedTo: String(form.get("assignedTo") || "Luis Carlos Aguirre"),
+            intake: {
+              industry,
+              yearsOperating: 0,
+              howFoundUs: source,
+              mainProblem,
+              expectedResult: desiredOutcome,
+              previousConsulting: "no",
+              budgetAvailable: budget,
+              willingToParticipate: "sí",
+              internalFlag: fit,
+            },
           });
         }}
       >
         <Field label="Empresa o proyecto"><TextInput name="company" required /></Field>
-        <Field label="Contacto"><TextInput name="contactName" required /></Field>
+        <Field label="Responsable / contacto"><TextInput name="contactName" required /></Field>
+        <Field label="Puesto"><TextInput name="contactRole" placeholder="Director, gerente, fundador..." /></Field>
         <Field label="Correo"><TextInput name="email" type="email" /></Field>
         <Field label="WhatsApp"><TextInput name="phone" placeholder="+52 ..." /></Field>
-        <Field label="Cómo llegó"><TextInput name="source" defaultValue="Manual" /></Field>
-        <Field label="Valor estimado opcional"><TextInput name="estimatedValue" type="number" min="0" defaultValue={0} /></Field>
-        <div className="flex justify-end gap-2 md:col-span-2">
+        <Field label="Ciudad"><TextInput name="city" placeholder="Chihuahua, El Paso..." /></Field>
+        <Field label="Industria"><TextInput name="industry" placeholder="Manufactura, salud, retail..." /></Field>
+        <Field label="Origen del lead"><Select name="source" defaultValue="Manual">{sources.map((item) => <option key={item}>{item}</option>)}</Select></Field>
+        <Field label="Area afectada"><Select name="affectedArea" defaultValue="Operaciones">{areas.map((item) => <option key={item}>{item}</option>)}</Select></Field>
+        <Field label="Urgencia"><Select name="urgency" defaultValue="media"><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></Select></Field>
+        <Field label="Presupuesto"><Select name="budget" defaultValue="evaluando"><option value="definido">Definido</option><option value="evaluando">Evaluando</option><option value="sin presupuesto">Sin presupuesto</option></Select></Field>
+        <Field label="Quien decide"><TextInput name="decisionMaker" placeholder="Direccion, socios, comite..." /></Field>
+        <Field label="Responsable interno"><Select name="assignedTo" defaultValue="Luis Carlos Aguirre">{responsibles.map((item) => <option key={item}>{item}</option>)}</Select></Field>
+        <Field label="Valor estimado"><TextInput name="estimatedValue" type="number" min="0" defaultValue={0} /></Field>
+        <Field label="Probabilidad inicial"><TextInput name="closeProbability" type="number" min="0" max="100" defaultValue={15} /></Field>
+        <div className="xl:col-span-3"><Field label="Problema principal"><TextArea name="mainProblem" placeholder="Que duele hoy en la empresa..." /></Field></div>
+        <div className="xl:col-span-3"><Field label="Resultado deseado"><TextArea name="desiredOutcome" placeholder="Que resultado quiere ver en 30, 60 o 90 dias..." /></Field></div>
+        <div className="xl:col-span-3"><Field label="Proxima accion"><TextInput name="nextStep" defaultValue="Enviar Formulario 1 LC y validar fit inicial" /></Field></div>
+        <div className="flex justify-end gap-2 md:col-span-2 xl:col-span-3">
           <Button>
             <Send className="h-4 w-4" />
             Crear lead y copiar link
@@ -1004,8 +1268,16 @@ function LeadEditor({
   const [stage, setStage] = useState<LeadStage>(lead.stage);
   const [company, setCompany] = useState(lead.company);
   const [contactName, setContactName] = useState(lead.contactName);
+  const [contactRole, setContactRole] = useState(lead.contactRole ?? "");
   const [email, setEmail] = useState(lead.email);
   const [phone, setPhone] = useState(lead.phone);
+  const [industry, setIndustry] = useState(lead.intake?.industry ?? lead.industry ?? "");
+  const [city, setCity] = useState(lead.city ?? "");
+  const [affectedArea, setAffectedArea] = useState(lead.affectedArea ?? "");
+  const [urgency, setUrgency] = useState<"baja" | "media" | "alta">(lead.urgency ?? "media");
+  const [budget, setBudget] = useState<"definido" | "evaluando" | "sin presupuesto">(lead.budget ?? lead.intake?.budgetAvailable ?? "evaluando");
+  const [decisionMaker, setDecisionMaker] = useState(lead.decisionMaker ?? "");
+  const [assignedTo, setAssignedTo] = useState(lead.assignedTo ?? "Luis Carlos Aguirre");
   const [estimatedValue, setEstimatedValue] = useState(lead.estimatedValue);
   const [nextStep, setNextStep] = useState(lead.nextStep);
   const [mainProblem, setMainProblem] = useState(lead.intake?.mainProblem ?? "");
@@ -1054,8 +1326,28 @@ function LeadEditor({
           </div>
           <Field label="Empresa"><TextInput value={company} onChange={(event) => setCompany(event.target.value)} /></Field>
           <Field label="Contacto"><TextInput value={contactName} onChange={(event) => setContactName(event.target.value)} /></Field>
+          <Field label="Puesto"><TextInput value={contactRole} onChange={(event) => setContactRole(event.target.value)} /></Field>
           <Field label="Email"><TextInput value={email} onChange={(event) => setEmail(event.target.value)} /></Field>
           <Field label="Teléfono"><TextInput value={phone} onChange={(event) => setPhone(event.target.value)} /></Field>
+          <Field label="Industria"><TextInput value={industry} onChange={(event) => setIndustry(event.target.value)} /></Field>
+          <Field label="Ciudad"><TextInput value={city} onChange={(event) => setCity(event.target.value)} /></Field>
+          <Field label="Area afectada"><TextInput value={affectedArea} onChange={(event) => setAffectedArea(event.target.value)} /></Field>
+          <Field label="Urgencia">
+            <Select value={urgency} onChange={(event) => setUrgency(event.currentTarget.value as "baja" | "media" | "alta")}>
+              <option value="alta">Alta</option>
+              <option value="media">Media</option>
+              <option value="baja">Baja</option>
+            </Select>
+          </Field>
+          <Field label="Presupuesto">
+            <Select value={budget} onChange={(event) => setBudget(event.currentTarget.value as "definido" | "evaluando" | "sin presupuesto")}>
+              <option value="definido">Definido</option>
+              <option value="evaluando">Evaluando</option>
+              <option value="sin presupuesto">Sin presupuesto</option>
+            </Select>
+          </Field>
+          <Field label="Quien decide"><TextInput value={decisionMaker} onChange={(event) => setDecisionMaker(event.target.value)} /></Field>
+          <Field label="Responsable LC"><TextInput value={assignedTo} onChange={(event) => setAssignedTo(event.target.value)} /></Field>
           <Field label="Valor estimado"><TextInput type="number" value={estimatedValue} onChange={(event) => setEstimatedValue(Number(event.target.value))} /></Field>
           <Field label="Paquete recomendado">
             <Select value={recommendedPackage} onChange={(event) => setRecommendedPackage(event.target.value as PackageType)}>
@@ -1074,7 +1366,7 @@ function LeadEditor({
           <div className="md:col-span-2">
             <p className="mb-2 text-sm font-medium text-brand-charcoal/80">Proceso</p>
             <div className="flex flex-wrap gap-2">
-              {leadStages.map((item) => (
+              {leadStages.filter((item) => item !== "cliente ganado").map((item) => (
                 <Button key={item} variant={stage === item ? "primary" : "secondary"} onClick={() => setStage(item)}>
                   {item}
                 </Button>
@@ -1086,8 +1378,17 @@ function LeadEditor({
             <Button onClick={() => onSave({
               company,
               contactName,
+              contactRole,
               email,
               phone,
+              industry,
+              city,
+              affectedArea,
+              urgency,
+              budget,
+              decisionMaker,
+              assignedTo,
+              desiredOutcome: expectedResult,
               estimatedValue,
               nextStep,
               stage,
@@ -1101,6 +1402,8 @@ function LeadEditor({
                   willingToParticipate: "sí",
                   internalFlag: "amarillo",
                 }),
+                industry,
+                budgetAvailable: budget,
                 mainProblem,
                 expectedResult,
               },

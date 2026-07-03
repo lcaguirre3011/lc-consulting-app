@@ -268,6 +268,17 @@ export function DashboardScreen() {
   const consultantsBusy = data.consultants.filter((consultant) => consultant.status === "ocupado");
   const newLeads = data.leads.filter((lead) => lead.stage === "nuevo lead" || lead.stage === "formulario 1 enviado");
   const proposals = data.leads.filter((lead) => ["propuesta enviada", "negociacion"].includes(lead.stage));
+  const invoicedRevenue = data.invoices
+    .filter((invoice) => invoice.status !== "cancelada")
+    .reduce((sum, invoice) => sum + invoice.total, 0);
+  const collectedRevenue = data.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const accountsReceivable = Math.max(0, invoicedRevenue - collectedRevenue);
+  const overdueInvoices = data.invoices.filter((invoice) => invoice.status === "vencida");
+  const operatingExpenses = data.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const operatingMargin = collectedRevenue - operatingExpenses;
+  const billableHours = data.timeEntries.filter((entry) => entry.billable).reduce((sum, entry) => sum + entry.hours, 0);
+  const nonBillableHours = data.timeEntries.filter((entry) => !entry.billable).reduce((sum, entry) => sum + entry.hours, 0);
+  const utilization = Math.round((billableHours / Math.max(billableHours + nonBillableHours, 1)) * 100);
 
   return (
     <>
@@ -281,6 +292,18 @@ export function DashboardScreen() {
         <Stat label="Avance promedio" value={`${avgProjectProgress}%`} detail="Progreso global de ejecución" tone="yellow" />
         <Stat label="Riesgos abiertos" value={`${overdueTasks.length + criticalKpis.length}`} detail="Tareas atrasadas + KPIs críticos" tone="red" />
       </div>
+
+      <Panel className="mt-6">
+        <PanelHeader title="ERP interno LC" description="Caja, cobranza, gastos, margen y capacidad del negocio." />
+        <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-6">
+          <Stat label="Facturado" value={money(invoicedRevenue)} detail={`${data.invoices.length} facturas`} tone="blue" />
+          <Stat label="Cobrado" value={money(collectedRevenue)} detail="Pagos aplicados" tone="green" />
+          <Stat label="Por cobrar" value={money(accountsReceivable)} detail={`${overdueInvoices.length} vencidas`} tone={overdueInvoices.length ? "red" : "yellow"} />
+          <Stat label="Gastos" value={money(operatingExpenses)} detail={`${data.expenses.length} movimientos`} tone="yellow" />
+          <Stat label="Margen caja" value={money(operatingMargin)} detail="Cobrado - gastos" tone={operatingMargin >= 0 ? "green" : "red"} />
+          <Stat label="Utilizacion" value={`${utilization}%`} detail={`${billableHours}h facturables`} tone="blue" />
+        </div>
+      </Panel>
 
       <div className="mt-6 grid gap-6 xl:grid-cols-[1.1fr_0.9fr]">
         <Panel>
@@ -2941,48 +2964,209 @@ export function ReportsScreen() {
 }
 
 export function SettingsScreen() {
-  const { user, data, resetDemo } = useStore();
+  const { user, data, resetDemo, addInvoice, addExpense } = useStore();
+  const [tab, setTab] = useState<"sistema" | "equipo" | "paquetes" | "finanzas">("sistema");
   const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const totals = useMemo(() => [
     ["Leads", data.leads.length],
     ["Clientes", data.clients.length],
     ["Proyectos", data.projects.length],
-    ["Tareas", data.tasks.length],
-    ["KPIs", data.kpis.length],
+    ["Facturas", data.invoices.length],
+    ["Gastos", data.expenses.length],
+    ["Horas", data.timeEntries.length],
   ], [data]);
+  const invoicedRevenue = data.invoices.filter((invoice) => invoice.status !== "cancelada").reduce((sum, invoice) => sum + invoice.total, 0);
+  const collectedRevenue = data.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const expenses = data.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const accountsReceivable = Math.max(0, invoicedRevenue - collectedRevenue);
+  const billableHours = data.timeEntries.filter((entry) => entry.billable).reduce((sum, entry) => sum + entry.hours, 0);
+  const tabs = ["sistema", "equipo", "paquetes", "finanzas"] as const;
 
   return (
     <>
-      <PageHeader title="Configuracion" description="Usuarios, roles, modo demo, variables de entorno y arquitectura para crecer." />
-      <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
-        <Panel>
-          <PanelHeader title="Workspace" description={data.organization.name} />
-          <div className="space-y-4 p-5">
-            <div className="rounded-lg border border-slate-200 p-4">
-              <p className="font-medium">{user?.name}</p>
-              <p className="text-sm text-slate-500">{user?.email} · {user?.role}</p>
-            </div>
-            <div className="flex items-center justify-between rounded-lg border border-slate-200 p-4">
-              <div>
-                <p className="font-medium">Supabase</p>
-                <p className="text-sm text-slate-500">{hasEnv ? "Variables detectadas" : "Modo demo local activo"}</p>
-              </div>
-              <Badge tone={hasEnv ? "green" : "yellow"}>{hasEnv ? "conectado" : "demo"}</Badge>
-            </div>
-            <Button variant="secondary" onClick={resetDemo}><RotateCcw className="h-4 w-4" />Restaurar datos demo</Button>
-          </div>
-        </Panel>
-        <Panel>
-          <PanelHeader title="Estado del MVP" description="Modulos y volumen demo cargado." />
-          <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
-            {totals.map(([label, value]) => <Stat key={label} label={String(label)} value={String(value)} detail="Registros demo" />)}
-          </div>
-          <div className="border-t border-slate-200 p-5 text-sm leading-6 text-slate-600">
-            La estructura incluye autenticacion, roles admin/consultant/viewer, multiusuario por organizacion,
-            RLS en Supabase y tablas para archivos/reportes aunque el MVP muestra reportes en app.
-          </div>
-        </Panel>
+      <PageHeader title="Configuracion" description="ERP interno de LC: sistema, equipo, paquetes, facturacion, gastos y control administrativo." />
+      <div className="mb-6 flex flex-wrap gap-2">
+        {tabs.map((item) => (
+          <Button key={item} variant={tab === item ? "primary" : "secondary"} onClick={() => setTab(item)}>{item}</Button>
+        ))}
       </div>
+
+      {tab === "sistema" ? (
+        <div className="grid gap-6 xl:grid-cols-[0.8fr_1.2fr]">
+          <Panel>
+            <PanelHeader title="Workspace" description={data.organization.name} />
+            <div className="space-y-4 p-5">
+              <div className="rounded-lg border border-brand-mist p-4">
+                <p className="font-medium">{user?.name}</p>
+                <p className="text-sm text-brand-charcoal/55">{user?.email} - {user?.role}</p>
+              </div>
+              <div className="flex items-center justify-between rounded-lg border border-brand-mist p-4">
+                <div>
+                  <p className="font-medium">Supabase</p>
+                  <p className="text-sm text-brand-charcoal/55">{hasEnv ? "Variables detectadas" : "Modo demo local activo"}</p>
+                </div>
+                <Badge tone={hasEnv ? "green" : "yellow"}>{hasEnv ? "conectado" : "demo"}</Badge>
+              </div>
+              <Button variant="secondary" onClick={resetDemo}><RotateCcw className="h-4 w-4" />Restaurar datos demo</Button>
+            </div>
+          </Panel>
+          <Panel>
+            <PanelHeader title="Estado operativo" description="Volumen de datos del ERP y CRM." />
+            <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-3">
+              {totals.map(([label, value]) => <Stat key={label} label={String(label)} value={String(value)} detail="Registros demo" />)}
+            </div>
+            <div className="border-t border-brand-mist p-5 text-sm leading-6 text-brand-charcoal/60">
+              El ERP ya separa pipeline comercial, clientes, proyectos, facturas, pagos, gastos, horas de consultoria, paquetes y capacidad del equipo. La siguiente capa natural es conectar estos registros a Supabase con permisos por rol.
+            </div>
+          </Panel>
+        </div>
+      ) : null}
+
+      {tab === "equipo" ? (
+        <Panel>
+          <PanelHeader title="Equipo y capacidad" description="Carga de consultores, horas registradas y proyectos asignados." />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[900px] text-left text-sm">
+              <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
+                <tr><th className="px-5 py-3">Consultor</th><th className="px-5 py-3">Rol</th><th className="px-5 py-3">Estado</th><th className="px-5 py-3">Capacidad</th><th className="px-5 py-3">Horas</th><th className="px-5 py-3">Proyectos</th></tr>
+              </thead>
+              <tbody className="divide-y divide-brand-mist">
+                {data.consultants.map((consultant) => {
+                  const hours = data.timeEntries.filter((entry) => entry.consultantId === consultant.id).reduce((sum, entry) => sum + entry.hours, 0);
+                  return (
+                    <tr key={consultant.id}>
+                      <td className="px-5 py-4 font-medium">{consultant.name}</td>
+                      <td className="px-5 py-4">{consultant.role}</td>
+                      <td className="px-5 py-4"><Badge tone={consultant.status === "disponible" ? "green" : consultant.status === "ocupado" ? "yellow" : "red"}>{consultant.status}</Badge></td>
+                      <td className="px-5 py-4">{consultant.capacity}%</td>
+                      <td className="px-5 py-4">{hours}h</td>
+                      <td className="px-5 py-4">{consultant.projectIds.length}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "paquetes" ? (
+        <Panel>
+          <PanelHeader title="Catalogo comercial" description="Paquetes, precios base y reglas de cobro para cotizaciones." />
+          <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+            {data.packages.map((pkg) => (
+              <div key={pkg.id} className="rounded-lg border border-brand-mist bg-white p-4">
+                <p className="font-semibold text-brand-charcoal">{pkg.name}</p>
+                <p className="mt-1 text-sm text-brand-charcoal/55">{pkg.duration}</p>
+                <p className="mt-3 text-2xl font-semibold text-brand-navy">{pkg.price ? money(pkg.price) : "A cotizar"}</p>
+                <p className="mt-2 text-sm text-brand-charcoal/60">{pkg.pricingNotes}</p>
+                <p className="mt-3 text-sm leading-6 text-brand-charcoal/65">{pkg.description}</p>
+              </div>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
+
+      {tab === "finanzas" ? (
+        <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+          <div className="space-y-6">
+            <Panel>
+              <PanelHeader title="Resumen financiero" description="Facturacion, cobranza, gastos y productividad." />
+              <div className="grid gap-3 p-5 sm:grid-cols-2">
+                <Stat label="Facturado" value={money(invoicedRevenue)} detail={`${data.invoices.length} facturas`} tone="blue" />
+                <Stat label="Cobrado" value={money(collectedRevenue)} detail={`${data.payments.length} pagos`} tone="green" />
+                <Stat label="Por cobrar" value={money(accountsReceivable)} detail="Cartera pendiente" tone="yellow" />
+                <Stat label="Gastos" value={money(expenses)} detail={`${data.expenses.length} egresos`} tone="red" />
+                <Stat label="Margen caja" value={money(collectedRevenue - expenses)} detail="Cobrado - gastos" tone={collectedRevenue >= expenses ? "green" : "red"} />
+                <Stat label="Horas facturables" value={`${billableHours}h`} detail="Consultoria registrada" tone="blue" />
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelHeader title="Registrar factura" description="Crea una factura interna vinculada a cliente y proyecto." />
+              <form
+                className="grid gap-4 p-5"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  const subtotal = Number(form.get("subtotal") || 0);
+                  const tax = Math.round(subtotal * 0.16);
+                  addInvoice({
+                    clientId: String(form.get("clientId")),
+                    projectId: String(form.get("projectId") || "") || undefined,
+                    folio: String(form.get("folio")),
+                    concept: String(form.get("concept")),
+                    issuedAt: String(form.get("issuedAt")),
+                    dueAt: String(form.get("dueAt")),
+                    subtotal,
+                    tax,
+                    total: subtotal + tax,
+                    status: "emitida",
+                  });
+                  event.currentTarget.reset();
+                }}
+              >
+                <Field label="Cliente"><Select name="clientId" required>{data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></Field>
+                <Field label="Proyecto"><Select name="projectId"><option value="">Sin proyecto</option>{data.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</Select></Field>
+                <Field label="Folio"><TextInput name="folio" defaultValue={`LC-2026-${String(data.invoices.length + 1).padStart(3, "0")}`} required /></Field>
+                <Field label="Concepto"><TextInput name="concept" required /></Field>
+                <Field label="Subtotal"><TextInput name="subtotal" type="number" min="0" required /></Field>
+                <div className="grid gap-4 md:grid-cols-2"><Field label="Emision"><TextInput name="issuedAt" type="date" required /></Field><Field label="Vencimiento"><TextInput name="dueAt" type="date" required /></Field></div>
+                <Button>Guardar factura</Button>
+              </form>
+            </Panel>
+          </div>
+
+          <div className="space-y-6">
+            <Panel>
+              <PanelHeader title="Registrar gasto" description="Control de egresos internos, billables o no billables." />
+              <form
+                className="grid gap-4 p-5 md:grid-cols-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  addExpense({
+                    clientId: String(form.get("clientId") || "") || undefined,
+                    projectId: String(form.get("projectId") || "") || undefined,
+                    date: String(form.get("date")),
+                    category: String(form.get("category")) as "nomina" | "software" | "viaticos" | "proveedor" | "marketing" | "otro",
+                    description: String(form.get("description")),
+                    vendor: String(form.get("vendor")),
+                    amount: Number(form.get("amount") || 0),
+                    billable: form.get("billable") === "on",
+                  });
+                  event.currentTarget.reset();
+                }}
+              >
+                <Field label="Fecha"><TextInput name="date" type="date" required /></Field>
+                <Field label="Categoria"><Select name="category"><option value="software">Software</option><option value="viaticos">Viaticos</option><option value="proveedor">Proveedor</option><option value="marketing">Marketing</option><option value="nomina">Nomina</option><option value="otro">Otro</option></Select></Field>
+                <Field label="Cliente"><Select name="clientId"><option value="">Interno LC</option>{data.clients.map((client) => <option key={client.id} value={client.id}>{client.name}</option>)}</Select></Field>
+                <Field label="Proyecto"><Select name="projectId"><option value="">Sin proyecto</option>{data.projects.map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</Select></Field>
+                <Field label="Proveedor"><TextInput name="vendor" required /></Field>
+                <Field label="Monto"><TextInput name="amount" type="number" min="0" required /></Field>
+                <div className="md:col-span-2"><Field label="Descripcion"><TextInput name="description" required /></Field></div>
+                <label className="flex items-center gap-2 text-sm text-brand-charcoal/75"><input name="billable" type="checkbox" /> Reembolsable / facturable al cliente</label>
+                <div className="md:col-span-2"><Button>Guardar gasto</Button></div>
+              </form>
+            </Panel>
+
+            <Panel>
+              <PanelHeader title="Facturas y cartera" description="Estado de facturacion del negocio." />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left text-sm">
+                  <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55"><tr><th className="px-5 py-3">Folio</th><th className="px-5 py-3">Cliente</th><th className="px-5 py-3">Total</th><th className="px-5 py-3">Vence</th><th className="px-5 py-3">Estado</th></tr></thead>
+                  <tbody className="divide-y divide-brand-mist">
+                    {data.invoices.map((invoice) => {
+                      const client = data.clients.find((item) => item.id === invoice.clientId);
+                      return <tr key={invoice.id}><td className="px-5 py-4 font-medium">{invoice.folio}</td><td className="px-5 py-4">{client?.name}</td><td className="px-5 py-4">{money(invoice.total)}</td><td className="px-5 py-4">{shortDate(invoice.dueAt)}</td><td className="px-5 py-4"><Badge tone={invoice.status === "pagada" ? "green" : invoice.status === "vencida" ? "red" : "yellow"}>{invoice.status}</Badge></td></tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          </div>
+        </div>
+      ) : null}
     </>
   );
 }

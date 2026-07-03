@@ -25,6 +25,7 @@ export type TaskStatus =
   | "en revision"
   | "terminada";
 export type KpiStatus = "bien" | "alerta" | "critico";
+export type InvoiceStatus = "borrador" | "emitida" | "pagada" | "vencida" | "cancelada";
 export type PackageType =
   | "Diagnóstico Express + Recomendaciones"
   | "Diagnóstico + Plan de Acción"
@@ -150,6 +151,8 @@ export interface ConsultingPackage {
   name: PackageType;
   description: string;
   duration: string;
+  price: number;
+  pricingNotes?: string;
 }
 
 export interface Contact {
@@ -337,6 +340,52 @@ export interface Report {
   generatedAt?: string;
 }
 
+export interface Invoice {
+  id: string;
+  clientId: string;
+  projectId?: string;
+  folio: string;
+  concept: string;
+  issuedAt: string;
+  dueAt: string;
+  subtotal: number;
+  tax: number;
+  total: number;
+  status: InvoiceStatus;
+}
+
+export interface Payment {
+  id: string;
+  invoiceId: string;
+  paidAt: string;
+  amount: number;
+  method: string;
+  reference: string;
+}
+
+export interface Expense {
+  id: string;
+  clientId?: string;
+  projectId?: string;
+  date: string;
+  category: "nomina" | "software" | "viaticos" | "proveedor" | "marketing" | "otro";
+  description: string;
+  vendor: string;
+  amount: number;
+  billable: boolean;
+}
+
+export interface TimeEntry {
+  id: string;
+  consultantId: string;
+  clientId?: string;
+  projectId?: string;
+  date: string;
+  hours: number;
+  activity: string;
+  billable: boolean;
+}
+
 export interface AppData {
   organization: Organization;
   users: AppUser[];
@@ -358,4 +407,8 @@ export interface AppData {
   clientHistory: ClientHistory[];
   consultants: Consultant[];
   packages: ConsultingPackage[];
+  invoices: Invoice[];
+  payments: Payment[];
+  expenses: Expense[];
+  timeEntries: TimeEntry[];
 }

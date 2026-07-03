@@ -16,7 +16,9 @@ import type {
   Client,
   Consultant,
   Diagnosis,
+  Expense,
   IntakeForm,
+  Invoice,
   Lead,
   LeadStage,
   Project,
@@ -62,7 +64,18 @@ function normalizeData(data: AppData): AppData {
     reports: data.reports ?? demoData.reports,
     clientHistory: data.clientHistory ?? demoData.clientHistory,
     consultants: data.consultants ?? demoData.consultants,
-    packages: data.packages ?? demoData.packages,
+    packages: (data.packages ?? demoData.packages).map((item) => {
+      const demoPackage = demoData.packages.find((candidate) => candidate.id === item.id);
+      return {
+        ...item,
+        price: item.price ?? demoPackage?.price ?? 0,
+        pricingNotes: item.pricingNotes ?? demoPackage?.pricingNotes,
+      };
+    }),
+    invoices: data.invoices ?? demoData.invoices,
+    payments: data.payments ?? demoData.payments,
+    expenses: data.expenses ?? demoData.expenses,
+    timeEntries: data.timeEntries ?? demoData.timeEntries,
   };
 }
 
@@ -82,6 +95,8 @@ interface StoreContextValue {
   addProject: (project: Omit<Project, "id" | "progress" | "risks" | "kpiIds">) => string;
   upsertRecipe: (recipe: Recipe) => void;
   addConsultant: (consultant: Omit<Consultant, "id" | "projectIds">) => void;
+  addInvoice: (invoice: Omit<Invoice, "id">) => void;
+  addExpense: (expense: Omit<Expense, "id">) => void;
   addDiagnosisFromIntake: (intake: Omit<IntakeForm, "id" | "createdAt">) => string;
   createTasksFromMeeting: (meetingId: string) => number;
   generateReport: (period: string, type: Report["type"]) => string;
@@ -361,6 +376,20 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const addInvoice = useCallback((invoice: Omit<Invoice, "id">) => {
+    setData((current) => ({
+      ...current,
+      invoices: [{ ...invoice, id: uid("inv") }, ...current.invoices],
+    }));
+  }, []);
+
+  const addExpense = useCallback((expense: Omit<Expense, "id">) => {
+    setData((current) => ({
+      ...current,
+      expenses: [{ ...expense, id: uid("exp") }, ...current.expenses],
+    }));
+  }, []);
+
   const addDiagnosisFromIntake = useCallback((intake: Omit<IntakeForm, "id" | "createdAt">) => {
     const fullIntake: IntakeForm = {
       ...intake,
@@ -450,6 +479,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addProject,
       upsertRecipe,
       addConsultant,
+      addInvoice,
+      addExpense,
       addDiagnosisFromIntake,
       createTasksFromMeeting,
       generateReport,
@@ -470,6 +501,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       addProject,
       upsertRecipe,
       addConsultant,
+      addInvoice,
+      addExpense,
       addDiagnosisFromIntake,
       createTasksFromMeeting,
       generateReport,

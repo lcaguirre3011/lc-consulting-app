@@ -21,13 +21,16 @@ import { cn, daysLate, money, pct, shortDate } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
   AlertTriangle,
+  BriefcaseBusiness,
   CalendarPlus,
   CheckCircle2,
   ClipboardCheck,
+  CircleDollarSign,
   Columns3,
   Copy,
   Edit3,
   ExternalLink,
+  FileBarChart2,
   FileCheck2,
   FileDown,
   FolderOpen,
@@ -36,11 +39,14 @@ import {
   LayoutGrid,
   LineChart,
   List,
+  NotebookTabs,
   Plus,
   RotateCcw,
   Save,
   Send,
+  Settings,
   Table2,
+  Target,
   Users,
   Video,
   WalletCards,
@@ -234,7 +240,7 @@ export function LoginScreen() {
             onSubmit={(event) => {
               event.preventDefault();
               login(email);
-              router.push("/dashboard");
+              router.push("/app");
             }}
           >
             <Field label="Correo">
@@ -247,6 +253,92 @@ export function LoginScreen() {
           </form>
         </div>
       </section>
+    </main>
+  );
+}
+
+export function AppLauncherScreen() {
+  const { data, user } = useStore();
+  const modules = [
+    { label: "CRM", href: "/crm", icon: Target, detail: "Pipeline comercial", tone: "bg-violet-100 text-violet-700" },
+    { label: "Clientes", href: "/clientes", icon: Users, detail: "Expedientes empresariales", tone: "bg-emerald-100 text-emerald-700" },
+    { label: "Proyectos", href: "/proyectos", icon: BriefcaseBusiness, detail: "Ejecucion LEAD", tone: "bg-sky-100 text-sky-700" },
+    { label: "Recetario", href: "/recetario", icon: NotebookTabs, detail: "Memoria institucional", tone: "bg-amber-100 text-amber-700" },
+    { label: "Finanzas", href: "/finanzas", icon: CircleDollarSign, detail: "Caja y cobranza", tone: "bg-lime-100 text-lime-700" },
+    { label: "Reportes", href: "/reportes", icon: FileBarChart2, detail: "PDFs ejecutivos", tone: "bg-indigo-100 text-indigo-700" },
+    { label: "Sesiones", href: "/reuniones", icon: Video, detail: "Bitacora consultiva", tone: "bg-rose-100 text-rose-700" },
+    { label: "Configuracion", href: "/configuracion", icon: Settings, detail: "Usuarios y paquetes", tone: "bg-slate-100 text-slate-700" },
+  ];
+  const recentActivity = [
+    {
+      title: `${data.leads.find((lead) => lead.stage === "sesion inicial agendada")?.company ?? "Prospecto"} - sesion pendiente`,
+      detail: "Preparar investigacion previa y preguntas clave.",
+      tone: "border-brand-gold bg-brand-gold/10",
+    },
+    {
+      title: `${data.kpis.find((kpi) => kpi.status === "critico")?.name ?? "KPI critico"} - requiere atencion`,
+      detail: "Revisar expediente y acciones correctivas.",
+      tone: "border-rose-200 bg-rose-50",
+    },
+    {
+      title: `${data.invoices.find((invoice) => invoice.status === "vencida")?.folio ?? "Factura"} - cobranza`,
+      detail: "Dar seguimiento al estado de cuenta del cliente.",
+      tone: "border-sky-200 bg-sky-50",
+    },
+  ];
+
+  return (
+    <main className="min-h-screen bg-[#f8fafc] px-5 py-6 text-brand-charcoal sm:px-8 lg:px-12">
+      <div className="mx-auto max-w-6xl">
+        <header className="flex flex-col gap-5 border-b border-brand-charcoal/10 pb-6 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-center gap-4">
+            <div className="grid h-14 w-14 place-items-center rounded-xl border border-brand-charcoal/10 bg-white shadow-sm">
+              <Image src="/brand/isologo-color.png" alt="Leading Connections" width={46} height={46} className="h-11 w-11 object-contain" priority />
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-brand-navy">LC Leading Connections OS</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Bienvenido, {user?.name.split(" ")[0] ?? "Luis Carlos"}</h1>
+            </div>
+          </div>
+          <div className="rounded-lg border border-brand-charcoal/10 bg-white px-4 py-3 text-sm text-brand-charcoal/60 shadow-sm">
+            Consultorio empresarial activo
+          </div>
+        </header>
+
+        <section className="grid gap-5 py-10 sm:grid-cols-2 lg:grid-cols-4">
+          {modules.map((module) => {
+            const Icon = module.icon;
+            return (
+              <Link
+                key={module.href}
+                href={module.href}
+                className="group rounded-xl border border-brand-charcoal/10 bg-white p-5 shadow-sm transition hover:-translate-y-1 hover:border-brand-gold/70 hover:shadow-md"
+              >
+                <div className={cn("grid h-14 w-14 place-items-center rounded-xl", module.tone)}>
+                  <Icon className="h-7 w-7" />
+                </div>
+                <p className="mt-5 text-base font-semibold text-brand-charcoal">{module.label}</p>
+                <p className="mt-1 text-sm text-brand-charcoal/55">{module.detail}</p>
+              </Link>
+            );
+          })}
+        </section>
+
+        <section className="rounded-xl border border-brand-charcoal/10 bg-white shadow-sm">
+          <div className="border-b border-brand-charcoal/10 px-5 py-4">
+            <h2 className="font-semibold text-brand-charcoal">Actividad reciente</h2>
+            <p className="mt-1 text-sm text-brand-charcoal/55">Señales operativas para iniciar el dia con foco.</p>
+          </div>
+          <div className="grid gap-3 p-5">
+            {recentActivity.map((item) => (
+              <div key={item.title} className={cn("rounded-lg border p-4", item.tone)}>
+                <p className="font-medium text-brand-charcoal">{item.title}</p>
+                <p className="mt-1 text-sm text-brand-charcoal/60">{item.detail}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
     </main>
   );
 }
@@ -2982,6 +3074,83 @@ function ConsultantCard({ consultantId }: { consultantId: string }) {
   );
 }
 
+export function FinancialsScreen() {
+  const { data } = useStore();
+  const invoiced = data.invoices.filter((invoice) => invoice.status !== "cancelada").reduce((sum, invoice) => sum + invoice.total, 0);
+  const paid = data.payments.reduce((sum, payment) => sum + payment.amount, 0);
+  const expenses = data.expenses.reduce((sum, expense) => sum + expense.amount, 0);
+  const receivable = Math.max(0, invoiced - paid);
+  const activeProjectValue = data.projects.filter((project) => project.status !== "cancelado").reduce((sum, project) => sum + project.budget, 0);
+  const overdueInvoices = data.invoices.filter((invoice) => invoice.status === "vencida");
+
+  return (
+    <>
+      <PageHeader
+        title="Finanzas"
+        description="Vista global del negocio. Cada factura, pago, gasto e ingreso pertenece a un cliente o proyecto especifico."
+      />
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+        <Stat label="Ingresos facturados" value={money(invoiced)} detail={`${data.invoices.length} facturas`} tone="blue" />
+        <Stat label="Cobrado" value={money(paid)} detail={`${data.payments.length} pagos`} tone="green" />
+        <Stat label="Por cobrar" value={money(receivable)} detail={`${overdueInvoices.length} vencidas`} tone={overdueInvoices.length ? "red" : "yellow"} />
+        <Stat label="Gastos" value={money(expenses)} detail={`${data.expenses.length} registros`} tone="red" />
+        <Stat label="Valor activo" value={money(activeProjectValue)} detail="Proyectos en cartera" tone="blue" />
+      </div>
+
+      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.85fr]">
+        <Panel>
+          <PanelHeader title="Cartera de facturas" description="Cobranza vinculada a clientes y proyectos." />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] text-left text-sm">
+              <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
+                <tr><th className="px-5 py-3">Folio</th><th className="px-5 py-3">Cliente</th><th className="px-5 py-3">Proyecto</th><th className="px-5 py-3">Concepto</th><th className="px-5 py-3">Total</th><th className="px-5 py-3">Estado</th></tr>
+              </thead>
+              <tbody className="divide-y divide-brand-mist">
+                {data.invoices.map((invoice) => {
+                  const client = data.clients.find((item) => item.id === invoice.clientId);
+                  const project = data.projects.find((item) => item.id === invoice.projectId);
+                  return (
+                    <tr key={invoice.id} className="hover:bg-brand-gold/10">
+                      <td className="px-5 py-4 font-medium">{invoice.folio}</td>
+                      <td className="px-5 py-4">{client?.name ?? "Sin cliente"}</td>
+                      <td className="px-5 py-4">{project?.name ?? "Sin proyecto"}</td>
+                      <td className="px-5 py-4">{invoice.concept}</td>
+                      <td className="px-5 py-4">{money(invoice.total)}</td>
+                      <td className="px-5 py-4"><Badge tone={invoice.status === "pagada" ? "green" : invoice.status === "vencida" ? "red" : "yellow"}>{invoice.status}</Badge></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+
+        <Panel>
+          <PanelHeader title="Gastos por proyecto" description="Egresos internos y reembolsables asociados a clientes." />
+          <div className="space-y-3 p-5">
+            {data.expenses.map((expense) => {
+              const client = data.clients.find((item) => item.id === expense.clientId);
+              const project = data.projects.find((item) => item.id === expense.projectId);
+              return (
+                <div key={expense.id} className="rounded-lg border border-brand-mist p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-brand-charcoal">{expense.description}</p>
+                      <p className="mt-1 text-sm text-brand-charcoal/55">{client?.name ?? "Interno LC"} - {project?.name ?? expense.category}</p>
+                    </div>
+                    <Badge tone={expense.billable ? "blue" : "neutral"}>{expense.billable ? "facturable" : "interno"}</Badge>
+                  </div>
+                  <p className="mt-3 text-lg font-semibold text-brand-charcoal">{money(expense.amount)}</p>
+                </div>
+              );
+            })}
+          </div>
+        </Panel>
+      </div>
+    </>
+  );
+}
+
 export function ReportsScreen() {
   const { data, generateReport } = useStore();
   const [period, setPeriod] = useState("Julio 2026");
@@ -3258,6 +3427,6 @@ export function SettingsScreen() {
 export function HomeRedirectScreen() {
   const router = useRouter();
   const { user, isReady } = useStore();
-  if (isReady) router.replace(user ? "/dashboard" : "/login");
+  if (isReady) router.replace(user ? "/app" : "/login");
   return <div className="min-h-screen bg-slate-50" />;
 }

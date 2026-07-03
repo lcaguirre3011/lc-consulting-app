@@ -3,11 +3,16 @@
 import { StoreProvider, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
+  Bell,
+  BriefcaseBusiness,
   ChevronLeft,
   ChevronRight,
-  LayoutDashboard,
+  CircleDollarSign,
+  FileBarChart2,
+  Home,
   Menu,
   NotebookTabs,
+  Search,
   Settings,
   Target,
   Users,
@@ -23,12 +28,15 @@ import { Button } from "./ui";
 
 
 const navSections: { label?: string; items: { href: string; label: string; icon: LucideIcon }[] }[] = [
-  { items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }] },
+  { items: [{ href: "/app", label: "Inicio", icon: Home }] },
   {
     items: [
       { href: "/crm", label: "CRM", icon: Target },
       { href: "/clientes", label: "Clientes", icon: Users },
+      { href: "/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
       { href: "/recetario", label: "Recetario", icon: NotebookTabs },
+      { href: "/finanzas", label: "Finanzas", icon: CircleDollarSign },
+      { href: "/reportes", label: "Reportes", icon: FileBarChart2 },
     ],
   },
   { items: [{ href: "/configuracion", label: "Configuracion", icon: Settings }] },
@@ -42,7 +50,12 @@ function ShellContent({ children }: { children: ReactNode }) {
   const [collapsed, setCollapsed] = useState(false);
   const isPublicLeadForm = pathname.startsWith("/formularios/lead/");
   const isSessionMode = pathname.startsWith("/sesion/");
+  const isLauncher = pathname === "/app";
   const activeSessionLead = data.leads.find((lead) => lead.stage === "sesion inicial agendada");
+  const flatNavItems = navSections.flatMap((section) => section.items);
+  const currentModule = flatNavItems
+    .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
+    .sort((a, b) => b.href.length - a.href.length)[0];
 
   useEffect(() => {
     if (isReady && !user && pathname !== "/login" && !isPublicLeadForm) router.replace("/login");
@@ -56,6 +69,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   if (isPublicLeadForm) return <>{children}</>;
   if (!user) return <div className="min-h-screen bg-slate-50" />;
   if (isSessionMode) return <>{children}</>;
+  if (isLauncher) return <>{children}</>;
 
   const sidebar = (
     <aside className={cn("flex h-full flex-col border-r border-brand-charcoal/10 bg-white/95 shadow-sm shadow-brand-charcoal/5 backdrop-blur transition-all", collapsed ? "w-[4.5rem]" : "w-64")}>
@@ -162,6 +176,30 @@ function ShellContent({ children }: { children: ReactNode }) {
           <Menu className="h-5 w-5" />
         </button>
       </header>
+      <div className={cn("hidden border-b border-brand-charcoal/10 bg-white/90 px-8 py-4 backdrop-blur lg:sticky lg:top-0 lg:z-20 lg:flex lg:items-center lg:justify-between", collapsed ? "lg:ml-[4.5rem]" : "lg:ml-64")}>
+        <div>
+          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-charcoal/35">Modulo</p>
+          <h1 className="mt-1 text-lg font-semibold text-brand-charcoal">{currentModule?.label ?? "Leading Connections OS"}</h1>
+        </div>
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-72 items-center gap-2 rounded-md border border-brand-mist bg-white px-3 text-sm text-brand-charcoal/45 shadow-sm">
+            <Search className="h-4 w-4" />
+            Buscar cliente, lead o proyecto
+          </div>
+          <button className="grid h-10 w-10 place-items-center rounded-md border border-brand-mist bg-white text-brand-charcoal/65 shadow-sm" aria-label="Notificaciones">
+            <Bell className="h-4 w-4" />
+          </button>
+          <div className="flex items-center gap-3 rounded-md border border-brand-mist bg-white px-3 py-2 shadow-sm">
+            <div className="grid h-7 w-7 place-items-center rounded-full bg-brand-navy text-xs font-semibold text-white">
+              {user.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}
+            </div>
+            <div>
+              <p className="text-sm font-medium leading-none text-brand-charcoal">{user.name}</p>
+              <p className="mt-1 text-xs capitalize leading-none text-brand-charcoal/45">{user.role}</p>
+            </div>
+          </div>
+        </div>
+      </div>
       <main className={cn("px-4 py-6 transition-all sm:px-6 lg:px-8 lg:py-8", collapsed ? "lg:ml-[4.5rem]" : "lg:ml-64")}>{children}</main>
       {activeSessionLead ? (
         <Link

@@ -52,7 +52,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState, type ReactNode } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -489,6 +489,11 @@ const crmPipelineColumns: { label: string; description: string; stages: LeadStag
 ];
 
 type CrmTab = "pipeline" | "leads" | "clientes" | "seguimientos" | "formularios" | "reportes";
+const crmTabIds: CrmTab[] = ["pipeline", "leads", "clientes", "seguimientos", "formularios", "reportes"];
+
+function asCrmTab(value: string | null): CrmTab {
+  return crmTabIds.includes(value as CrmTab) ? (value as CrmTab) : "pipeline";
+}
 
 function leadFitTone(lead: Lead) {
   if (lead.intake?.internalFlag === "verde") return "green";
@@ -511,9 +516,11 @@ function leadPain(lead: Lead) {
 }
 
 export function CrmScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, moveLead, addLead, updateLead } = useStore();
   const [showForm, setShowForm] = useState(false);
-  const [tab, setTab] = useState<CrmTab>("pipeline");
+  const tab = asCrmTab(searchParams.get("tab"));
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [draggingLeadId, setDraggingLeadId] = useState<string | null>(null);
   const [createdLeadLink, setCreatedLeadLink] = useState(false);
@@ -554,6 +561,10 @@ export function CrmScreen() {
     { id: "reportes", label: "Reportes" },
   ];
 
+  const selectCrmTab = (nextTab: CrmTab) => {
+    router.replace(`/crm?tab=${nextTab}`);
+  };
+
   const copyLeadFormLink = async (leadId: string) => {
     const link = getLeadFormUrl(leadId);
     await navigator.clipboard.writeText(link);
@@ -586,7 +597,7 @@ export function CrmScreen() {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => setTab("formularios")}><FileCheck2 className="h-4 w-4" />Formularios</Button>
+            <Button variant="secondary" onClick={() => selectCrmTab("formularios")}><FileCheck2 className="h-4 w-4" />Formularios</Button>
             <Button onClick={() => setShowForm((value) => !value)}><Plus className="h-4 w-4" />Nuevo lead</Button>
           </div>
         </div>
@@ -606,7 +617,7 @@ export function CrmScreen() {
             <button
               key={item.id}
               type="button"
-              onClick={() => setTab(item.id)}
+              onClick={() => selectCrmTab(item.id)}
               className={cn(
                 "whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-brand-charcoal/55 transition hover:bg-brand-paper hover:text-brand-charcoal",
                 tab === item.id && "bg-brand-navy text-white shadow-sm hover:bg-brand-navy hover:text-white",
@@ -659,7 +670,7 @@ export function CrmScreen() {
               <p className="font-semibold">Lead creado y formulario copiado.</p>
               <p className="mt-1 text-emerald-800">Envia el enlace al prospecto para iniciar la calificacion.</p>
             </div>
-            <Button variant="secondary" onClick={() => setTab("formularios")}>Ver formularios</Button>
+            <Button variant="secondary" onClick={() => selectCrmTab("formularios")}>Ver formularios</Button>
           </div>
         </div>
       ) : null}
@@ -1851,8 +1862,9 @@ function SessionSection({ title, children }: { title: string; children: ReactNod
 
 export function ClientsScreen() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, updateClient } = useStore();
-  const [section, setSection] = useState<"empresas" | "contactos">("empresas");
+  const section = searchParams.get("section") === "contactos" ? "contactos" : "empresas";
   const [view, setView] = useState<"tarjetas" | "tabla">("tarjetas");
   const [visibleFields, setVisibleFields] = useState({
     industry: true,
@@ -1869,12 +1881,16 @@ export function ClientsScreen() {
     reader.readAsDataURL(file);
   };
 
+  const selectClientSection = (nextSection: "empresas" | "contactos") => {
+    router.replace(`/clientes?section=${nextSection}`);
+  };
+
   return (
     <>
       <PageHeader title="Clientes" description="Empresas y contactos separados: la empresa tiene expediente, proyectos y KPIs; los contactos son las personas clave.">
         <div className="flex flex-wrap gap-2">
-          <Button variant={section === "empresas" ? "primary" : "secondary"} onClick={() => setSection("empresas")}>Empresas</Button>
-          <Button variant={section === "contactos" ? "primary" : "secondary"} onClick={() => setSection("contactos")}>Contactos</Button>
+          <Button variant={section === "empresas" ? "primary" : "secondary"} onClick={() => selectClientSection("empresas")}>Empresas</Button>
+          <Button variant={section === "contactos" ? "primary" : "secondary"} onClick={() => selectClientSection("contactos")}>Contactos</Button>
           {section === "empresas" ? (
             <>
               <IconToggle active={view === "tarjetas"} label="Vista tarjetas" onClick={() => setView("tarjetas")}>
@@ -2949,8 +2965,16 @@ function RecipeEditor({
 }
 
 export function ProjectsScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, updateProject, updateTaskStatus } = useStore();
-  const [view, setView] = useState<"modulos" | "tabla" | "gantt" | "tareas">("modulos");
+  const view = ["modulos", "tabla", "gantt", "tareas"].includes(searchParams.get("view") ?? "")
+    ? (searchParams.get("view") as "modulos" | "tabla" | "gantt" | "tareas")
+    : "modulos";
+
+  const selectProjectView = (nextView: "modulos" | "tabla" | "gantt" | "tareas") => {
+    router.replace(`/proyectos?view=${nextView}`);
+  };
 
   const projectTable = (
     <Panel>
@@ -2993,16 +3017,16 @@ export function ProjectsScreen() {
     <>
       <PageHeader title="Proyectos" description="Control global por modulos independientes: cada proyecto tiene receta, KPIs, tareas y avance propio.">
         <div className="flex flex-wrap gap-2">
-          <IconToggle active={view === "modulos"} label="Vista modulos" onClick={() => setView("modulos")}>
+          <IconToggle active={view === "modulos"} label="Vista modulos" onClick={() => selectProjectView("modulos")}>
             <LayoutGrid className="h-4 w-4" />
           </IconToggle>
-          <IconToggle active={view === "tabla"} label="Vista tabla" onClick={() => setView("tabla")}>
+          <IconToggle active={view === "tabla"} label="Vista tabla" onClick={() => selectProjectView("tabla")}>
             <Table2 className="h-4 w-4" />
           </IconToggle>
-          <IconToggle active={view === "gantt"} label="Vista Gantt" onClick={() => setView("gantt")}>
+          <IconToggle active={view === "gantt"} label="Vista Gantt" onClick={() => selectProjectView("gantt")}>
             <GanttChart className="h-4 w-4" />
           </IconToggle>
-          <IconToggle active={view === "tareas"} label="Vista tareas" onClick={() => setView("tareas")}>
+          <IconToggle active={view === "tareas"} label="Vista tareas" onClick={() => selectProjectView("tareas")}>
             <CheckCircle2 className="h-4 w-4" />
           </IconToggle>
         </div>

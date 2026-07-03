@@ -1,5 +1,10 @@
 import { CrmScreen } from "@/components/screens";
+import { Suspense } from "react";
 
 export default function CrmPage() {
-  return <CrmScreen />;
+  return (
+    <Suspense fallback={null}>
+      <CrmScreen />
+    </Suspense>
+  );
 }

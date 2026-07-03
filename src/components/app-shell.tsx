@@ -58,16 +58,16 @@ function ShellContent({ children }: { children: ReactNode }) {
   if (isSessionMode) return <>{children}</>;
 
   const sidebar = (
-    <aside className={cn("flex h-full flex-col border-r border-brand-charcoal/10 bg-white transition-all", collapsed ? "w-20" : "w-72")}>
-      <div className="border-b border-brand-charcoal/10 px-4 py-4">
+    <aside className={cn("flex h-full flex-col border-r border-brand-charcoal/10 bg-white/95 shadow-sm shadow-brand-charcoal/5 backdrop-blur transition-all", collapsed ? "w-[4.5rem]" : "w-64")}>
+      <div className="border-b border-brand-charcoal/10 px-3 py-3">
         <div className="flex items-center gap-3">
-          <div className="grid h-12 w-12 place-items-center overflow-hidden rounded-md border border-brand-mist bg-white">
+          <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-md border border-brand-mist bg-white shadow-sm">
             <Image
               src="/brand/isologo-color.png"
               alt="Leading Connections"
               width={42}
               height={42}
-              className="h-10 w-10 object-contain"
+              className="h-9 w-9 object-contain"
               priority
             />
           </div>
@@ -77,18 +77,18 @@ function ShellContent({ children }: { children: ReactNode }) {
           </div>
           <button
             aria-label={collapsed ? "Mostrar barra" : "Ocultar barra"}
-            className="ml-auto hidden h-8 w-8 items-center justify-center rounded-md border border-brand-mist text-brand-charcoal/70 hover:bg-brand-mist/60 lg:inline-flex"
+            className="ml-auto hidden h-8 w-8 items-center justify-center rounded-md border border-brand-mist text-brand-charcoal/60 transition hover:border-brand-gold hover:bg-brand-paper hover:text-brand-charcoal lg:inline-flex"
             onClick={() => setCollapsed((value) => !value)}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
           </button>
         </div>
       </div>
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav className="flex-1 overflow-y-auto px-2.5 py-3">
         {navSections.map((section, sectionIndex) => (
           <div
             key={section.label ?? `section-${sectionIndex}`}
-            className={cn(sectionIndex > 0 && "mt-4 border-t border-brand-charcoal/10 pt-3")}
+            className={cn(sectionIndex > 0 && "mt-3 border-t border-brand-charcoal/10 pt-3")}
           >
             {section.label ? (
               <p className={cn("mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-charcoal/35", collapsed && "hidden")}>
@@ -105,9 +105,9 @@ function ShellContent({ children }: { children: ReactNode }) {
                     href={item.href}
                     onClick={() => setOpen(false)}
                     className={cn(
-                      "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-brand-charcoal/70 transition hover:bg-brand-mist/70 hover:text-brand-charcoal",
+                      "flex h-9 items-center gap-3 rounded-md px-2.5 text-sm font-medium text-brand-charcoal/62 transition hover:bg-brand-paper hover:text-brand-charcoal",
                       collapsed && "justify-center px-0",
-                      active && "bg-brand-navy text-white shadow-sm hover:bg-brand-navy hover:text-white",
+                      active && "bg-brand-navy text-white shadow-sm shadow-brand-navy/15 hover:bg-brand-navy hover:text-white",
                     )}
                     title={collapsed ? item.label : undefined}
                   >
@@ -120,7 +120,7 @@ function ShellContent({ children }: { children: ReactNode }) {
           </div>
         ))}
       </nav>
-      <div className={cn("border-t border-brand-charcoal/10 p-4", collapsed && "px-2")}>
+      <div className={cn("border-t border-brand-charcoal/10 p-3", collapsed && "px-2")}>
         {!collapsed ? (
           <>
         <p className="text-sm font-medium text-brand-charcoal">{user.name}</p>
@@ -162,7 +162,7 @@ function ShellContent({ children }: { children: ReactNode }) {
           <Menu className="h-5 w-5" />
         </button>
       </header>
-      <main className={cn("px-4 py-6 transition-all sm:px-6 lg:px-8 lg:py-8", collapsed ? "lg:ml-20" : "lg:ml-72")}>{children}</main>
+      <main className={cn("px-4 py-6 transition-all sm:px-6 lg:px-8 lg:py-8", collapsed ? "lg:ml-[4.5rem]" : "lg:ml-64")}>{children}</main>
       {activeSessionLead ? (
         <Link
           href={`/sesion/lead/${activeSessionLead.id}`}

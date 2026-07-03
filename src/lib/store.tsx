@@ -90,6 +90,7 @@ interface StoreContextValue {
   moveLead: (leadId: string, stage: LeadStage) => void;
   addLead: (lead: Omit<Lead, "id" | "lastInteraction">) => string;
   updateLead: (leadId: string, patch: Partial<Lead>) => void;
+  updateClient: (clientId: string, patch: Partial<Client>) => void;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   updateProject: (projectId: string, patch: Partial<Project>) => void;
   addKpi: (kpi: Omit<Kpi, "id">) => string;
@@ -290,6 +291,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       queueMicrotask(() => convertLeadToClient(leadId));
     }
   }, [convertLeadToClient]);
+
+  const updateClient = useCallback((clientId: string, patch: Partial<Client>) => {
+    setData((current) => ({
+      ...current,
+      clients: current.clients.map((client) =>
+        client.id === clientId ? { ...client, ...patch } : client,
+      ),
+    }));
+  }, []);
 
   const updateTaskStatus = useCallback((taskId: string, status: TaskStatus) => {
     setData((current) => ({
@@ -504,6 +514,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       moveLead,
       addLead,
       updateLead,
+      updateClient,
       updateTaskStatus,
       updateProject,
       addKpi,
@@ -528,6 +539,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       moveLead,
       addLead,
       updateLead,
+      updateClient,
       updateTaskStatus,
       updateProject,
       addKpi,

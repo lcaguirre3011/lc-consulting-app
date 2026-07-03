@@ -5,8 +5,6 @@ import { cn } from "@/lib/utils";
 import {
   Bell,
   BriefcaseBusiness,
-  ChevronLeft,
-  ChevronRight,
   CircleDollarSign,
   FileBarChart2,
   Home,
@@ -27,19 +25,15 @@ import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "./ui";
 
 
-const navSections: { label?: string; items: { href: string; label: string; icon: LucideIcon }[] }[] = [
-  { items: [{ href: "/app", label: "Inicio", icon: Home }] },
-  {
-    items: [
-      { href: "/crm", label: "CRM", icon: Target },
-      { href: "/clientes", label: "Clientes", icon: Users },
-      { href: "/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
-      { href: "/recetario", label: "Recetario", icon: NotebookTabs },
-      { href: "/finanzas", label: "Finanzas", icon: CircleDollarSign },
-      { href: "/reportes", label: "Reportes", icon: FileBarChart2 },
-    ],
-  },
-  { items: [{ href: "/configuracion", label: "Configuracion", icon: Settings }] },
+const navItems: { href: string; label: string; icon: LucideIcon }[] = [
+  { href: "/app", label: "Inicio", icon: Home },
+  { href: "/crm", label: "CRM", icon: Target },
+  { href: "/clientes", label: "Clientes", icon: Users },
+  { href: "/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
+  { href: "/recetario", label: "Recetario", icon: NotebookTabs },
+  { href: "/finanzas", label: "Finanzas", icon: CircleDollarSign },
+  { href: "/reportes", label: "Reportes", icon: FileBarChart2 },
+  { href: "/configuracion", label: "Configuracion", icon: Settings },
 ];
 
 function ShellContent({ children }: { children: ReactNode }) {
@@ -47,13 +41,11 @@ function ShellContent({ children }: { children: ReactNode }) {
   const router = useRouter();
   const { user, logout, isReady, data } = useStore();
   const [open, setOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(false);
   const isPublicLeadForm = pathname.startsWith("/formularios/lead/");
   const isSessionMode = pathname.startsWith("/sesion/");
   const isLauncher = pathname === "/app";
   const activeSessionLead = data.leads.find((lead) => lead.stage === "sesion inicial agendada");
-  const flatNavItems = navSections.flatMap((section) => section.items);
-  const currentModule = flatNavItems
+  const currentModule = navItems
     .filter((item) => pathname === item.href || pathname.startsWith(`${item.href}/`))
     .sort((a, b) => b.href.length - a.href.length)[0];
 
@@ -71,136 +63,85 @@ function ShellContent({ children }: { children: ReactNode }) {
   if (isSessionMode) return <>{children}</>;
   if (isLauncher) return <>{children}</>;
 
-  const sidebar = (
-    <aside className={cn("flex h-full flex-col border-r border-brand-charcoal/10 bg-white/95 shadow-sm shadow-brand-charcoal/5 backdrop-blur transition-all", collapsed ? "w-[4.5rem]" : "w-64")}>
-      <div className="border-b border-brand-charcoal/10 px-3 py-3">
-        <div className="flex items-center gap-3">
-          <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-md border border-brand-mist bg-white shadow-sm">
-            <Image
-              src="/brand/isologo-color.png"
-              alt="Leading Connections"
-              width={42}
-              height={42}
-              className="h-9 w-9 object-contain"
-              priority
-            />
-          </div>
-          <div className={cn(collapsed && "hidden")}>
-            <p className="text-sm font-semibold text-brand-charcoal">Leading Connections</p>
-            <p className="text-xs text-brand-charcoal/55">Business Consulting</p>
-          </div>
-          <button
-            aria-label={collapsed ? "Mostrar barra" : "Ocultar barra"}
-            className="ml-auto hidden h-8 w-8 items-center justify-center rounded-md border border-brand-mist text-brand-charcoal/60 transition hover:border-brand-gold hover:bg-brand-paper hover:text-brand-charcoal lg:inline-flex"
-            onClick={() => setCollapsed((value) => !value)}
+  const navigation = (
+    <nav className="flex items-center gap-1">
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={() => setOpen(false)}
+            className={cn(
+              "inline-flex h-10 items-center gap-2 rounded-md px-3 text-sm font-medium text-brand-charcoal/65 transition hover:bg-brand-paper hover:text-brand-charcoal",
+              active && "bg-brand-navy text-white shadow-sm shadow-brand-navy/15 hover:bg-brand-navy hover:text-white",
+            )}
           >
-            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
-          </button>
-        </div>
-      </div>
-      <nav className="flex-1 overflow-y-auto px-2.5 py-3">
-        {navSections.map((section, sectionIndex) => (
-          <div
-            key={section.label ?? `section-${sectionIndex}`}
-            className={cn(sectionIndex > 0 && "mt-3 border-t border-brand-charcoal/10 pt-3")}
-          >
-            {section.label ? (
-              <p className={cn("mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-charcoal/35", collapsed && "hidden")}>
-                {section.label}
-              </p>
-            ) : null}
-            <div className="space-y-1">
-              {section.items.map((item) => {
-                const Icon = item.icon;
-                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setOpen(false)}
-                    className={cn(
-                      "flex h-9 items-center gap-3 rounded-md px-2.5 text-sm font-medium text-brand-charcoal/62 transition hover:bg-brand-paper hover:text-brand-charcoal",
-                      collapsed && "justify-center px-0",
-                      active && "bg-brand-navy text-white shadow-sm shadow-brand-navy/15 hover:bg-brand-navy hover:text-white",
-                    )}
-                    title={collapsed ? item.label : undefined}
-                  >
-                    <Icon className={cn("h-4 w-4", active && "text-brand-gold")} />
-                    <span className={cn(collapsed && "hidden")}>{item.label}</span>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </nav>
-      <div className={cn("border-t border-brand-charcoal/10 p-3", collapsed && "px-2")}>
-        {!collapsed ? (
-          <>
-        <p className="text-sm font-medium text-brand-charcoal">{user.name}</p>
-        <p className="text-xs capitalize text-brand-charcoal/55">{user.role}</p>
-        <Button className="mt-3 w-full" variant="secondary" onClick={logout}>
-          Salir
-        </Button>
-          </>
-        ) : (
-          <Button className="w-full px-0" variant="secondary" onClick={logout} title="Salir">
-            <X className="h-4 w-4" />
-          </Button>
-        )}
-      </div>
-    </aside>
+            <Icon className={cn("h-4 w-4", active && "text-brand-gold")} />
+            <span>{item.label}</span>
+          </Link>
+        );
+      })}
+    </nav>
   );
 
   return (
     <div className="min-h-screen bg-transparent text-brand-charcoal">
-      <div className="hidden fixed inset-y-0 left-0 z-30 lg:block">{sidebar}</div>
-      {open ? (
-        <div className="fixed inset-0 z-40 bg-brand-charcoal/50 lg:hidden">
-          <div className="h-full w-72">{sidebar}</div>
+      <header className="sticky top-0 z-30 border-b border-brand-charcoal/10 bg-white/92 px-4 py-3 shadow-sm shadow-brand-charcoal/5 backdrop-blur">
+        <div className="mx-auto flex max-w-[1500px] items-center gap-4">
+          <Link href="/app" className="flex shrink-0 items-center gap-3">
+            <div className="grid h-10 w-10 place-items-center overflow-hidden rounded-md border border-brand-mist bg-white shadow-sm">
+              <Image
+                src="/brand/isologo-color.png"
+                alt="Leading Connections"
+                width={42}
+                height={42}
+                className="h-9 w-9 object-contain"
+                priority
+              />
+            </div>
+            <div className="hidden sm:block">
+              <p className="text-sm font-semibold leading-none text-brand-charcoal">Leading Connections</p>
+              <p className="mt-1 text-xs leading-none text-brand-charcoal/55">{currentModule?.label ?? "OS"}</p>
+            </div>
+          </Link>
+          <div className="hidden flex-1 overflow-x-auto lg:block">{navigation}</div>
+          <div className="ml-auto hidden items-center gap-3 lg:flex">
+            <div className="flex h-10 w-64 items-center gap-2 rounded-md border border-brand-mist bg-white px-3 text-sm text-brand-charcoal/45 shadow-sm">
+              <Search className="h-4 w-4" />
+              Buscar
+            </div>
+            <button className="grid h-10 w-10 place-items-center rounded-md border border-brand-mist bg-white text-brand-charcoal/65 shadow-sm" aria-label="Notificaciones">
+              <Bell className="h-4 w-4" />
+            </button>
+            <div className="flex items-center gap-3 rounded-md border border-brand-mist bg-white px-3 py-2 shadow-sm">
+              <div className="grid h-7 w-7 place-items-center rounded-full bg-brand-navy text-xs font-semibold text-white">
+                {user.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}
+              </div>
+              <div>
+                <p className="text-sm font-medium leading-none text-brand-charcoal">{user.name}</p>
+                <p className="mt-1 text-xs capitalize leading-none text-brand-charcoal/45">{user.role}</p>
+              </div>
+            </div>
+            <Button variant="secondary" onClick={logout}>Salir</Button>
+          </div>
           <button
-            aria-label="Cerrar menu"
-            className="absolute right-4 top-4 rounded-md bg-white p-2"
-            onClick={() => setOpen(false)}
+            aria-label="Abrir menu"
+            className="ml-auto inline-flex h-10 w-10 items-center justify-center rounded-md border border-brand-mist bg-white lg:hidden"
+            onClick={() => setOpen((value) => !value)}
           >
-            <X className="h-5 w-5" />
+            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
         </div>
-      ) : null}
-      <header className="sticky top-0 z-20 border-b border-brand-charcoal/10 bg-white/90 px-4 py-3 backdrop-blur lg:hidden">
-        <button
-          aria-label="Abrir menu"
-          className="inline-flex h-10 w-10 items-center justify-center rounded-md border border-brand-mist"
-          onClick={() => setOpen(true)}
-        >
-          <Menu className="h-5 w-5" />
-        </button>
+        {open ? (
+          <div className="mt-3 grid gap-2 border-t border-brand-mist pt-3 lg:hidden">
+            {navigation}
+            <Button variant="secondary" onClick={logout}>Salir</Button>
+          </div>
+        ) : null}
       </header>
-      <div className={cn("hidden border-b border-brand-charcoal/10 bg-white/90 px-8 py-4 backdrop-blur lg:sticky lg:top-0 lg:z-20 lg:flex lg:items-center lg:justify-between", collapsed ? "lg:ml-[4.5rem]" : "lg:ml-64")}>
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-brand-charcoal/35">Modulo</p>
-          <h1 className="mt-1 text-lg font-semibold text-brand-charcoal">{currentModule?.label ?? "Leading Connections OS"}</h1>
-        </div>
-        <div className="flex items-center gap-3">
-          <div className="flex h-10 w-72 items-center gap-2 rounded-md border border-brand-mist bg-white px-3 text-sm text-brand-charcoal/45 shadow-sm">
-            <Search className="h-4 w-4" />
-            Buscar cliente, lead o proyecto
-          </div>
-          <button className="grid h-10 w-10 place-items-center rounded-md border border-brand-mist bg-white text-brand-charcoal/65 shadow-sm" aria-label="Notificaciones">
-            <Bell className="h-4 w-4" />
-          </button>
-          <div className="flex items-center gap-3 rounded-md border border-brand-mist bg-white px-3 py-2 shadow-sm">
-            <div className="grid h-7 w-7 place-items-center rounded-full bg-brand-navy text-xs font-semibold text-white">
-              {user.name.split(" ").map((part) => part[0]).slice(0, 2).join("")}
-            </div>
-            <div>
-              <p className="text-sm font-medium leading-none text-brand-charcoal">{user.name}</p>
-              <p className="mt-1 text-xs capitalize leading-none text-brand-charcoal/45">{user.role}</p>
-            </div>
-          </div>
-        </div>
-      </div>
-      <main className={cn("px-4 py-6 transition-all sm:px-6 lg:px-8 lg:py-8", collapsed ? "lg:ml-[4.5rem]" : "lg:ml-64")}>{children}</main>
+      <main className="mx-auto max-w-[1500px] px-4 py-6 transition-all sm:px-6 lg:px-8 lg:py-8">{children}</main>
       {activeSessionLead ? (
         <Link
           href={`/sesion/lead/${activeSessionLead.id}`}

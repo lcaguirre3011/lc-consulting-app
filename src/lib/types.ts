@@ -123,6 +123,7 @@ export interface Lead {
 export interface Client {
   id: string;
   name: string;
+  companyPhotoUrl?: string;
   industry: string;
   size: string;
   health: Health;

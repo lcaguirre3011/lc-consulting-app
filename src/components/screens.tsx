@@ -38,7 +38,6 @@ import {
   GripVertical,
   LayoutGrid,
   LineChart,
-  List,
   NotebookTabs,
   Plus,
   RotateCcw,
@@ -258,7 +257,7 @@ export function LoginScreen() {
 }
 
 export function AppLauncherScreen() {
-  const { data, user } = useStore();
+  const { user } = useStore();
   const modules = [
     { label: "CRM", href: "/crm", icon: Target, detail: "Pipeline comercial", tone: "bg-violet-100 text-violet-700" },
     { label: "Clientes", href: "/clientes", icon: Users, detail: "Expedientes empresariales", tone: "bg-emerald-100 text-emerald-700" },
@@ -268,23 +267,6 @@ export function AppLauncherScreen() {
     { label: "Reportes", href: "/reportes", icon: FileBarChart2, detail: "PDFs ejecutivos", tone: "bg-indigo-100 text-indigo-700" },
     { label: "Sesiones", href: "/reuniones", icon: Video, detail: "Bitacora consultiva", tone: "bg-rose-100 text-rose-700" },
     { label: "Configuracion", href: "/configuracion", icon: Settings, detail: "Usuarios y paquetes", tone: "bg-slate-100 text-slate-700" },
-  ];
-  const recentActivity = [
-    {
-      title: `${data.leads.find((lead) => lead.stage === "sesion inicial agendada")?.company ?? "Prospecto"} - sesion pendiente`,
-      detail: "Preparar investigacion previa y preguntas clave.",
-      tone: "border-brand-gold bg-brand-gold/10",
-    },
-    {
-      title: `${data.kpis.find((kpi) => kpi.status === "critico")?.name ?? "KPI critico"} - requiere atencion`,
-      detail: "Revisar expediente y acciones correctivas.",
-      tone: "border-rose-200 bg-rose-50",
-    },
-    {
-      title: `${data.invoices.find((invoice) => invoice.status === "vencida")?.folio ?? "Factura"} - cobranza`,
-      detail: "Dar seguimiento al estado de cuenta del cliente.",
-      tone: "border-sky-200 bg-sky-50",
-    },
   ];
 
   return (
@@ -324,20 +306,6 @@ export function AppLauncherScreen() {
           })}
         </section>
 
-        <section className="rounded-xl border border-brand-charcoal/10 bg-white shadow-sm">
-          <div className="border-b border-brand-charcoal/10 px-5 py-4">
-            <h2 className="font-semibold text-brand-charcoal">Actividad reciente</h2>
-            <p className="mt-1 text-sm text-brand-charcoal/55">Señales operativas para iniciar el dia con foco.</p>
-          </div>
-          <div className="grid gap-3 p-5">
-            {recentActivity.map((item) => (
-              <div key={item.title} className={cn("rounded-lg border p-4", item.tone)}>
-                <p className="font-medium text-brand-charcoal">{item.title}</p>
-                <p className="mt-1 text-sm text-brand-charcoal/60">{item.detail}</p>
-              </div>
-            ))}
-          </div>
-        </section>
       </div>
     </main>
   );
@@ -1882,8 +1850,10 @@ function SessionSection({ title, children }: { title: string; children: ReactNod
 }
 
 export function ClientsScreen() {
-  const { data } = useStore();
-  const [view, setView] = useState<"tarjetas" | "lista">("tarjetas");
+  const router = useRouter();
+  const { data, updateClient } = useStore();
+  const [section, setSection] = useState<"empresas" | "contactos">("empresas");
+  const [view, setView] = useState<"tarjetas" | "tabla">("tarjetas");
   const [visibleFields, setVisibleFields] = useState({
     industry: true,
     pain: true,
@@ -1892,94 +1862,162 @@ export function ClientsScreen() {
     owner: true,
   });
 
+  const updateClientPhoto = (clientId: string, file?: File) => {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => updateClient(clientId, { companyPhotoUrl: String(reader.result) });
+    reader.readAsDataURL(file);
+  };
+
   return (
     <>
-      <PageHeader title="Clientes" description="Expedientes activos tratados como pacientes: diagnóstico, historial, proyectos y KPIs.">
+      <PageHeader title="Clientes" description="Empresas y contactos separados: la empresa tiene expediente, proyectos y KPIs; los contactos son las personas clave.">
         <div className="flex flex-wrap gap-2">
-          <IconToggle active={view === "tarjetas"} label="Vista tarjetas" onClick={() => setView("tarjetas")}>
-            <LayoutGrid className="h-4 w-4" />
-          </IconToggle>
-          <IconToggle active={view === "lista"} label="Vista lista" onClick={() => setView("lista")}>
-            <List className="h-4 w-4" />
-          </IconToggle>
+          <Button variant={section === "empresas" ? "primary" : "secondary"} onClick={() => setSection("empresas")}>Empresas</Button>
+          <Button variant={section === "contactos" ? "primary" : "secondary"} onClick={() => setSection("contactos")}>Contactos</Button>
+          {section === "empresas" ? (
+            <>
+              <IconToggle active={view === "tarjetas"} label="Vista tarjetas" onClick={() => setView("tarjetas")}>
+                <LayoutGrid className="h-4 w-4" />
+              </IconToggle>
+              <IconToggle active={view === "tabla"} label="Vista tabla" onClick={() => setView("tabla")}>
+                <Table2 className="h-4 w-4" />
+              </IconToggle>
+            </>
+          ) : null}
         </div>
       </PageHeader>
-      <Panel className="mb-5">
-        <PanelHeader title="Campos visibles en tarjetas" description="Activa o quita lo que quieres ver en cada expediente." />
-        <div className="flex flex-wrap gap-4 p-4 text-sm">
-          {Object.entries({
-            industry: "Industria",
-            pain: "Dolor principal",
-            services: "Servicios",
-            revenue: "Ingreso estimado",
-            owner: "Responsable",
-          }).map(([key, label]) => (
-            <label key={key} className="flex items-center gap-2 text-brand-charcoal/75">
-              <input
-                type="checkbox"
-                checked={visibleFields[key as keyof typeof visibleFields]}
-                onChange={(event) => setVisibleFields((current) => ({ ...current, [key]: event.target.checked }))}
-              />
-              {label}
-            </label>
-          ))}
-        </div>
-      </Panel>
-      {view === "tarjetas" ? (
+
+      {section === "empresas" ? (
+        <Panel className="mb-5">
+          <PanelHeader title="Campos visibles en tarjetas" description="Activa o quita lo que quieres ver en cada empresa." />
+          <div className="flex flex-wrap gap-4 p-4 text-sm">
+            {Object.entries({
+              industry: "Industria",
+              pain: "Dolor principal",
+              services: "Servicios",
+              revenue: "Ingreso estimado",
+              owner: "Responsable",
+            }).map(([key, label]) => (
+              <label key={key} className="flex items-center gap-2 text-brand-charcoal/75">
+                <input
+                  type="checkbox"
+                  checked={visibleFields[key as keyof typeof visibleFields]}
+                  onChange={(event) => setVisibleFields((current) => ({ ...current, [key]: event.target.checked }))}
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </Panel>
+      ) : null}
+
+      {section === "empresas" && view === "tarjetas" ? (
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           {data.clients.map((client) => (
-            <Link
-              href={`/clientes/${client.id}`}
-              key={client.id}
-              className="rounded-lg border border-brand-mist bg-white p-5 shadow-sm transition hover:border-brand-gold"
-            >
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <h2 className="font-semibold text-brand-charcoal">{client.name}</h2>
-                  {visibleFields.industry ? <p className="mt-1 text-sm text-brand-charcoal/55">{client.industry}</p> : null}
+            <article key={client.id} className="rounded-lg border border-brand-mist bg-white p-5 shadow-sm transition hover:border-brand-gold hover:shadow-md">
+              <Link href={`/clientes/${client.id}`} className="block">
+                <div className="mb-4 h-32 rounded-lg border border-brand-mist bg-brand-paper bg-cover bg-center" style={{ backgroundImage: client.companyPhotoUrl ? `url(${client.companyPhotoUrl})` : undefined }}>
+                  {!client.companyPhotoUrl ? (
+                    <div className="grid h-full place-items-center text-sm font-semibold text-brand-charcoal/45">{client.name.slice(0, 2).toUpperCase()}</div>
+                  ) : null}
                 </div>
-                <Badge tone={healthTone(client.health)}>{client.health}</Badge>
-              </div>
-              {visibleFields.pain ? <p className="mt-4 text-sm leading-6 text-brand-charcoal/70">{client.mainPain}</p> : null}
-              <div className="mt-4 flex flex-wrap gap-2">
-                {visibleFields.services ? client.services.slice(0, 2).map((service) => <Badge key={service}>{service}</Badge>) : null}
-                {visibleFields.revenue ? <Badge tone="blue">{money(client.revenueEstimate)}</Badge> : null}
-                {visibleFields.owner ? <Badge>{client.accountOwner}</Badge> : null}
-              </div>
-            </Link>
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="font-semibold text-brand-charcoal">{client.name}</h2>
+                    {visibleFields.industry ? <p className="mt-1 text-sm text-brand-charcoal/55">{client.industry}</p> : null}
+                  </div>
+                  <Badge tone={healthTone(client.health)}>{client.health}</Badge>
+                </div>
+                {visibleFields.pain ? <p className="mt-4 text-sm leading-6 text-brand-charcoal/70">{client.mainPain}</p> : null}
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {visibleFields.services ? client.services.slice(0, 2).map((service) => <Badge key={service}>{service}</Badge>) : null}
+                  {visibleFields.revenue ? <Badge tone="blue">{money(client.revenueEstimate)}</Badge> : null}
+                  {visibleFields.owner ? <Badge>{client.accountOwner}</Badge> : null}
+                </div>
+              </Link>
+              <label className="mt-4 inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-brand-mist bg-white px-3 text-sm font-medium text-brand-charcoal hover:border-brand-gold">
+                Foto empresa
+                <input type="file" accept="image/*" className="sr-only" onChange={(event) => updateClientPhoto(client.id, event.currentTarget.files?.[0])} />
+              </label>
+            </article>
           ))}
         </div>
-      ) : (
+      ) : null}
+
+      {section === "empresas" && view === "tabla" ? (
         <Panel>
-          <PanelHeader title="Lista de clientes" description="Vista operativa para revisar expedientes rápidamente." />
+          <PanelHeader title="Tabla de empresas" description="Haz click en cualquier parte de una fila para abrir el expediente." />
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left text-sm">
+            <table className="w-full min-w-[980px] text-left text-sm">
               <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
                 <tr>
+                  <th className="px-5 py-3">Foto</th>
                   <th className="px-5 py-3">Cliente</th>
                   <th className="px-5 py-3">Industria</th>
                   <th className="px-5 py-3">Salud</th>
                   <th className="px-5 py-3">Responsable</th>
                   <th className="px-5 py-3">Ingreso</th>
-                  <th className="px-5 py-3">Expediente</th>
+                  <th className="px-5 py-3">Foto empresa</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-brand-mist">
                 {data.clients.map((client) => (
-                  <tr key={client.id} className="hover:bg-brand-gold/10">
+                  <tr key={client.id} className="cursor-pointer hover:bg-brand-gold/10" onClick={() => router.push(`/clientes/${client.id}`)}>
+                    <td className="px-5 py-4">
+                      <div className="h-11 w-14 rounded-md border border-brand-mist bg-brand-paper bg-cover bg-center" style={{ backgroundImage: client.companyPhotoUrl ? `url(${client.companyPhotoUrl})` : undefined }} />
+                    </td>
                     <td className="px-5 py-4 font-medium">{client.name}</td>
                     <td className="px-5 py-4">{client.industry}</td>
                     <td className="px-5 py-4"><Badge tone={healthTone(client.health)}>{client.health}</Badge></td>
                     <td className="px-5 py-4">{client.accountOwner}</td>
                     <td className="px-5 py-4">{money(client.revenueEstimate)}</td>
-                    <td className="px-5 py-4"><Link className="font-medium text-brand-navy" href={`/clientes/${client.id}`}>Abrir</Link></td>
+                    <td className="px-5 py-4" onClick={(event) => event.stopPropagation()}>
+                      <label className="inline-flex h-9 cursor-pointer items-center justify-center rounded-md border border-brand-mist bg-white px-3 text-sm font-medium text-brand-charcoal hover:border-brand-gold">
+                        Subir
+                        <input type="file" accept="image/*" className="sr-only" onChange={(event) => updateClientPhoto(client.id, event.currentTarget.files?.[0])} />
+                      </label>
+                    </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
         </Panel>
-      )}
+      ) : null}
+
+      {section === "contactos" ? (
+        <Panel>
+          <PanelHeader title="Contactos" description="Personas clave separadas de la empresa. Click en la fila abre el expediente de la empresa." />
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[860px] text-left text-sm">
+              <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
+                <tr>
+                  <th className="px-5 py-3">Contacto</th>
+                  <th className="px-5 py-3">Empresa</th>
+                  <th className="px-5 py-3">Rol</th>
+                  <th className="px-5 py-3">Email</th>
+                  <th className="px-5 py-3">Telefono</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-brand-mist">
+                {data.contacts.map((contact) => {
+                  const client = data.clients.find((item) => item.id === contact.clientId);
+                  return (
+                    <tr key={contact.id} className="cursor-pointer hover:bg-brand-gold/10" onClick={() => client && router.push(`/clientes/${client.id}`)}>
+                      <td className="px-5 py-4 font-medium">{contact.name}</td>
+                      <td className="px-5 py-4">{client?.name ?? "Sin empresa"}</td>
+                      <td className="px-5 py-4">{contact.role}</td>
+                      <td className="px-5 py-4">{contact.email}</td>
+                      <td className="px-5 py-4">{contact.phone}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Panel>
+      ) : null}
     </>
   );
 }

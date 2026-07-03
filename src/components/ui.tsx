@@ -32,7 +32,7 @@ export function Panel({
   className?: string;
 } & HTMLAttributes<HTMLElement>) {
   return (
-    <section className={cn("rounded-lg border border-brand-mist bg-white shadow-sm", className)} {...props}>
+    <section className={cn("rounded-lg border border-brand-charcoal/15 bg-white shadow-sm shadow-brand-charcoal/10", className)} {...props}>
       {children}
     </section>
   );
@@ -77,7 +77,7 @@ export function Stat({
     blue: "border-brand-navy/40",
   };
   return (
-    <div className={cn("rounded-lg border bg-white p-4 shadow-sm", accents[tone])}>
+    <div className={cn("rounded-lg border bg-white p-4 shadow-sm shadow-brand-charcoal/10", accents[tone])}>
       <p className="text-xs font-medium uppercase tracking-wide text-brand-charcoal/55">{label}</p>
       <p className="mt-3 text-2xl font-semibold text-brand-charcoal">{value}</p>
       <p className="mt-1 text-sm text-brand-charcoal/60">{detail}</p>

@@ -3,16 +3,19 @@
 @tailwind utilities;
 
 :root {
-  --background: #f7f7f5;
+  --background: #d9e0e8;
   --foreground: #2b2b2b;
   --brand-charcoal: #2b2b2b;
   --brand-navy: #223148;
-  --brand-mist: #e8e8e8;
+  --brand-mist: #c8d1dc;
   --brand-gold: #f4c430;
+  --brand-paper: #eef2f6;
 }
 
 body {
-  background: var(--background);
+  background:
+    radial-gradient(circle at top left, rgba(34, 49, 72, 0.14), transparent 34rem),
+    linear-gradient(180deg, #e7ebf0 0%, var(--background) 42%, #cfd8e2 100%);
   color: var(--foreground);
   font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
 }

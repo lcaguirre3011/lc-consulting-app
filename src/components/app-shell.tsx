@@ -153,7 +153,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   );
 
   return (
-    <div className="min-h-screen bg-brand-paper text-brand-charcoal">
+    <div className="min-h-screen bg-transparent text-brand-charcoal">
       <div className="hidden fixed inset-y-0 left-0 z-30 lg:block">{sidebar}</div>
       {open ? (
         <div className="fixed inset-0 z-40 bg-brand-charcoal/50 lg:hidden">

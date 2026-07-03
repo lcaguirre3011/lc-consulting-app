@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { consultingPackages, kpiTone, leadStages, taskStatuses } from "@/lib/demo-data";
 import { useStore } from "@/lib/store";
-import type { Diagnosis, DiscoveryForm, Health, Lead, LeadStage, PackageType, Priority, ProjectStatus, Recipe, TaskStatus } from "@/lib/types";
+import type { Diagnosis, DiscoveryForm, Health, IntakeForm, Lead, LeadStage, PackageType, Priority, ProjectStatus, Recipe, TaskStatus } from "@/lib/types";
 import { cn, daysLate, money, pct, shortDate } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -1985,8 +1985,11 @@ export function ClientsScreen() {
 }
 
 function NewProjectForm({ clientId }: { clientId: string }) {
-  const { addProject, data } = useStore();
+  const { addProject, addKpi, data } = useStore();
   const [open, setOpen] = useState(false);
+  const [recipeId, setRecipeId] = useState(data.recipes[0]?.id ?? "");
+  const selectedRecipe = data.recipes.find((recipe) => recipe.id === recipeId);
+  const [projectKpis, setProjectKpis] = useState(selectedRecipe?.kpis.join("\n") ?? "");
   if (!open) return <Button onClick={() => setOpen(true)}><Plus className="h-4 w-4" />Nuevo proyecto</Button>;
 
   return (
@@ -1997,7 +2000,7 @@ function NewProjectForm({ clientId }: { clientId: string }) {
         onSubmit={(event) => {
           event.preventDefault();
           const form = new FormData(event.currentTarget);
-          addProject({
+          const projectId = addProject({
             clientId,
             name: String(form.get("name")),
             objective: String(form.get("objective")),
@@ -2009,6 +2012,23 @@ function NewProjectForm({ clientId }: { clientId: string }) {
             priority: String(form.get("priority")) as Priority,
             budget: Number(form.get("budget")),
             packageType: String(form.get("packageType")) as PackageType,
+            assignedRecipeId: String(form.get("assignedRecipeId") || "") || undefined,
+          });
+          listToArray(String(form.get("projectKpis"))).forEach((name) => {
+            addKpi({
+              clientId,
+              projectId,
+              name,
+              description: `Indicador definido para medir exito en ${String(form.get("name"))}`,
+              formula: "Definir formula con cliente",
+              currentValue: 0,
+              target: 100,
+              unit: "%",
+              frequency: "Semanal",
+              owner: String(form.get("owner")),
+              source: "Definido en proyecto",
+              status: "alerta",
+            });
           });
           setOpen(false);
         }}
@@ -2020,6 +2040,20 @@ function NewProjectForm({ clientId }: { clientId: string }) {
         <Field label="Paquete">
           <Select name="packageType">{consultingPackages.map((item) => <option key={item.id}>{item.name}</option>)}</Select>
         </Field>
+        <Field label="Receta base del proyecto">
+          <Select
+            name="assignedRecipeId"
+            value={recipeId}
+            onChange={(event) => {
+              const nextRecipeId = event.currentTarget.value;
+              setRecipeId(nextRecipeId);
+              setProjectKpis(data.recipes.find((recipe) => recipe.id === nextRecipeId)?.kpis.join("\n") ?? "");
+            }}
+          >
+            <option value="">Proyecto personalizado sin receta base</option>
+            {data.recipes.map((recipe) => <option key={recipe.id} value={recipe.id}>{recipe.name}</option>)}
+          </Select>
+        </Field>
         <Field label="Prioridad">
           <Select name="priority"><option value="media">Media</option><option value="alta">Alta</option><option value="critica">Critica</option><option value="baja">Baja</option></Select>
         </Field>
@@ -2028,6 +2062,19 @@ function NewProjectForm({ clientId }: { clientId: string }) {
         <Field label="Presupuesto"><TextInput name="budget" type="number" required /></Field>
         <div className="md:col-span-2"><Field label="Objetivo"><TextArea name="objective" required /></Field></div>
         <div className="md:col-span-2"><Field label="Alcance"><TextArea name="scope" required /></Field></div>
+        <div className="md:col-span-2">
+          <Field label="KPIs propios del proyecto, uno por linea">
+            <TextArea
+              name="projectKpis"
+              value={projectKpis}
+              onChange={(event) => setProjectKpis(event.currentTarget.value)}
+              placeholder="Ej. Tiempo de entrega promedio&#10;Margen bruto del proyecto&#10;Conversion de seguimiento"
+            />
+          </Field>
+          <p className="mt-2 text-xs leading-5 text-brand-charcoal/55">
+            Las recetas sugieren indicadores, pero aqui se definen los KPIs reales de exito para este negocio.
+          </p>
+        </div>
         <div className="flex gap-2 md:col-span-2">
           <Button>Crear proyecto</Button>
           <Button type="button" variant="secondary" onClick={() => setOpen(false)}>Cancelar</Button>
@@ -2039,10 +2086,11 @@ function NewProjectForm({ clientId }: { clientId: string }) {
 
 export function ClientDetailScreen() {
   const { id } = useParams<{ id: string }>();
-  const { data, addDiagnosisFromIntake, updateDiagnosis } = useStore();
+  const { data, addDiagnosisFromIntake, updateDiagnosis, updateIntakeForm } = useStore();
   const [tab, setTab] = useState<"expediente" | "acuerdo" | "proyectos" | "sesiones" | "kpis" | "finanzas">("expediente");
   const [showNewExpediente, setShowNewExpediente] = useState(false);
   const [editingDiagnosis, setEditingDiagnosis] = useState<Diagnosis | null>(null);
+  const [editingIntake, setEditingIntake] = useState<IntakeForm | null>(null);
   const client = data.clients.find((item) => item.id === id);
   if (!client) return <EmptyState title="Cliente no encontrado" detail="Revisa el expediente seleccionado." />;
 
@@ -2190,6 +2238,22 @@ export function ClientDetailScreen() {
                 </form>
               ) : null}
               <div className="grid gap-4 p-5">
+                {intakeForms.length ? (
+                  <div className="grid gap-3">
+                    <p className="text-sm font-semibold text-brand-charcoal">Formularios del cliente</p>
+                    {intakeForms.map((form) => (
+                      <div key={form.id} className="rounded-lg border border-brand-mist bg-brand-paper p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <p className="font-semibold text-brand-charcoal">{form.formType ?? "formulario"} · {shortDate(form.createdAt)}</p>
+                            <p className="mt-1 text-sm leading-6 text-brand-charcoal/65">{form.currentProblems}</p>
+                          </div>
+                          <Button variant="secondary" onClick={() => setEditingIntake(form)}><Edit3 className="h-4 w-4" />Editar formulario</Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
                 {diagnoses.map((diagnosis) => (
                   <div key={diagnosis.id} className="rounded-lg border border-brand-mist p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
@@ -2404,9 +2468,82 @@ export function ClientDetailScreen() {
           }}
         />
       ) : null}
+      {editingIntake ? (
+        <IntakeFormEditor
+          intake={editingIntake}
+          onClose={() => setEditingIntake(null)}
+          onSave={(patch) => {
+            updateIntakeForm(editingIntake.id, patch);
+            setEditingIntake(null);
+          }}
+        />
+      ) : null}
     </>
   );
 }
+
+function IntakeFormEditor({
+  intake,
+  onClose,
+  onSave,
+}: {
+  intake: IntakeForm;
+  onClose: () => void;
+  onSave: (patch: Partial<IntakeForm>) => void;
+}) {
+  return (
+    <div className="fixed inset-0 z-50 grid place-items-center bg-brand-charcoal/60 p-4">
+      <form
+        className="max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-lg bg-white shadow-xl"
+        onSubmit={(event) => {
+          event.preventDefault();
+          const form = new FormData(event.currentTarget);
+          onSave({
+            currentProblems: String(form.get("currentProblems")),
+            objectives: String(form.get("objectives")),
+            criticalProcesses: String(form.get("criticalProcesses")),
+            tools: String(form.get("tools")),
+            sales: String(form.get("sales")),
+            operations: String(form.get("operations")),
+            finance: String(form.get("finance")),
+            marketing: String(form.get("marketing")),
+            customerService: String(form.get("customerService")),
+            urgency: String(form.get("urgency")) as IntakeForm["urgency"],
+            budget: String(form.get("budget")),
+            priorities: String(form.get("priorities")),
+          });
+        }}
+      >
+        <div className="flex items-center justify-between border-b border-brand-mist px-5 py-4">
+          <div>
+            <h2 className="font-semibold text-brand-charcoal">Editar formulario</h2>
+            <p className="text-sm text-brand-charcoal/60">{intake.company} · {intake.formType ?? "formulario"}</p>
+          </div>
+          <Button type="button" variant="ghost" onClick={onClose}>Cerrar</Button>
+        </div>
+        <div className="grid gap-4 p-5 md:grid-cols-2">
+          <div className="md:col-span-2"><Field label="Problemas actuales"><TextArea name="currentProblems" defaultValue={intake.currentProblems} required /></Field></div>
+          <div className="md:col-span-2"><Field label="Objetivos"><TextArea name="objectives" defaultValue={intake.objectives} required /></Field></div>
+          <Field label="Procesos criticos"><TextInput name="criticalProcesses" defaultValue={intake.criticalProcesses} /></Field>
+          <Field label="Herramientas"><TextInput name="tools" defaultValue={intake.tools} /></Field>
+          <Field label="Ventas"><TextInput name="sales" defaultValue={intake.sales} /></Field>
+          <Field label="Operaciones"><TextInput name="operations" defaultValue={intake.operations} /></Field>
+          <Field label="Finanzas"><TextInput name="finance" defaultValue={intake.finance} /></Field>
+          <Field label="Marketing"><TextInput name="marketing" defaultValue={intake.marketing} /></Field>
+          <Field label="Servicio al cliente"><TextInput name="customerService" defaultValue={intake.customerService} /></Field>
+          <Field label="Urgencia"><Select name="urgency" defaultValue={intake.urgency}><option value="baja">Baja</option><option value="media">Media</option><option value="alta">Alta</option></Select></Field>
+          <Field label="Presupuesto"><TextInput name="budget" defaultValue={intake.budget} /></Field>
+          <div className="md:col-span-2"><Field label="Prioridades"><TextArea name="priorities" defaultValue={intake.priorities} /></Field></div>
+          <div className="flex justify-end gap-2 md:col-span-2">
+            <Button type="button" variant="secondary" onClick={onClose}>Cancelar</Button>
+            <Button>Guardar formulario</Button>
+          </div>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function DiagnosisEditor({
   diagnosis,
   onClose,
@@ -2775,8 +2912,7 @@ function RecipeEditor({
 
 export function ProjectsScreen() {
   const { data, updateProject, updateTaskStatus } = useStore();
-  const [view, setView] = useState<"kanban" | "tabla" | "gantt" | "tareas">("kanban");
-  const [dragProjectId, setDragProjectId] = useState<string | null>(null);
+  const [view, setView] = useState<"modulos" | "tabla" | "gantt" | "tareas">("modulos");
 
   const projectTable = (
     <Panel>
@@ -2817,10 +2953,10 @@ export function ProjectsScreen() {
 
   return (
     <>
-      <PageHeader title="Proyectos" description="Control global tipo project manager: Kanban, tabla, Gantt y tareas por proyecto.">
+      <PageHeader title="Proyectos" description="Control global por modulos independientes: cada proyecto tiene receta, KPIs, tareas y avance propio.">
         <div className="flex flex-wrap gap-2">
-          <IconToggle active={view === "kanban"} label="Vista kanban" onClick={() => setView("kanban")}>
-            <Columns3 className="h-4 w-4" />
+          <IconToggle active={view === "modulos"} label="Vista modulos" onClick={() => setView("modulos")}>
+            <LayoutGrid className="h-4 w-4" />
           </IconToggle>
           <IconToggle active={view === "tabla"} label="Vista tabla" onClick={() => setView("tabla")}>
             <Table2 className="h-4 w-4" />
@@ -2834,46 +2970,52 @@ export function ProjectsScreen() {
         </div>
       </PageHeader>
       {view === "tabla" ? projectTable : null}
-      {view === "kanban" ? (
-        <div className="grid gap-4 overflow-x-auto xl:grid-cols-6">
-          {(["planeado", "en progreso", "pausado", "en revision", "completado", "cancelado"] as ProjectStatus[]).map((status) => (
-            <Panel
-              key={status}
-              className="min-w-64"
-              onDragOver={(event) => event.preventDefault()}
-              onDrop={() => {
-                if (dragProjectId) updateProject(dragProjectId, { status });
-                setDragProjectId(null);
-              }}
-            >
-              <PanelHeader title={status} description={`${data.projects.filter((project) => project.status === status).length} proyectos`} />
-              <div className="min-h-56 space-y-3 p-3">
-                {data.projects.filter((project) => project.status === status).map((project) => {
-                  const client = data.clients.find((item) => item.id === project.clientId);
-                  return (
-                    <Link
-                      key={project.id}
-                      href={`/proyectos/${project.id}`}
-                      draggable
-                      onDragStart={() => setDragProjectId(project.id)}
-                      onDragEnd={() => setDragProjectId(null)}
-                      className="block rounded-lg border border-brand-mist bg-white p-3 shadow-sm hover:border-brand-gold"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <p className="text-sm font-semibold">{project.name}</p>
-                          <p className="text-xs text-brand-charcoal/55">{client?.name}</p>
-                        </div>
-                        <GripVertical className="h-4 w-4 text-brand-charcoal/35" />
-                      </div>
-                      <p className="mt-2 text-xs text-brand-charcoal/60">{project.packageType}</p>
-                      <div className="mt-3 h-2 rounded-full bg-brand-mist"><div className="h-2 rounded-full bg-brand-gold" style={{ width: `${project.progress}%` }} /></div>
+      {view === "modulos" ? (
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {data.projects.map((project) => {
+            const client = data.clients.find((item) => item.id === project.clientId);
+            const recipe = data.recipes.find((item) => item.id === project.assignedRecipeId);
+            const projectKpis = data.kpis.filter((kpi) => project.kpiIds.includes(kpi.id) || kpi.projectId === project.id);
+            const openTasks = data.tasks.filter((task) => task.projectId === project.id && task.status !== "terminada");
+            return (
+              <article key={project.id} className="group rounded-lg border border-brand-charcoal/15 bg-white p-5 shadow-sm shadow-brand-charcoal/10 transition hover:-translate-y-0.5 hover:border-brand-gold hover:shadow-md">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0">
+                    <Link href={`/proyectos/${project.id}`} className="text-base font-semibold text-brand-charcoal hover:text-brand-navy">
+                      {project.name}
                     </Link>
-                  );
-                })}
-              </div>
-            </Panel>
-          ))}
+                    <p className="mt-1 text-sm text-brand-charcoal/55">{client?.name ?? "Sin cliente"} · {project.owner}</p>
+                  </div>
+                  <Badge tone={priorityTone(project.priority)}>{project.priority}</Badge>
+                </div>
+                <p className="mt-4 line-clamp-2 text-sm leading-6 text-brand-charcoal/70">{project.objective}</p>
+                <div className="mt-5 grid gap-2 text-sm">
+                  <div className="flex items-center justify-between gap-3 rounded-md bg-brand-paper px-3 py-2">
+                    <span className="text-brand-charcoal/55">Estado</span>
+                    <Select className="h-8 w-36" value={project.status} onChange={(event) => updateProject(project.id, { status: event.currentTarget.value as ProjectStatus })}>
+                      {["planeado", "en progreso", "pausado", "en revision", "completado", "cancelado"].map((status) => <option key={status}>{status}</option>)}
+                    </Select>
+                  </div>
+                  <ModuleProperty label="Receta" value={recipe?.name ?? "Proyecto personalizado"} />
+                  <ModuleProperty label="KPIs definidos" value={`${projectKpis.length}`} />
+                  <ModuleProperty label="Tareas abiertas" value={`${openTasks.length}`} />
+                  <ModuleProperty label="Paquete" value={project.packageType ?? "Sin paquete"} />
+                </div>
+                <div className="mt-5">
+                  <div className="flex items-center justify-between text-xs text-brand-charcoal/55">
+                    <span>Avance</span>
+                    <span>{pct(project.progress)}</span>
+                  </div>
+                  <div className="mt-2 h-2 rounded-full bg-brand-mist">
+                    <div className="h-2 rounded-full bg-brand-gold" style={{ width: `${project.progress}%` }} />
+                  </div>
+                </div>
+                <Link href={`/proyectos/${project.id}`} className="mt-5 inline-flex text-sm font-medium text-brand-navy hover:underline">
+                  Abrir modulo del proyecto
+                </Link>
+              </article>
+            );
+          })}
         </div>
       ) : null}
       {view === "gantt" ? <GanttScreen embedded /> : null}
@@ -2910,17 +3052,28 @@ export function ProjectsScreen() {
   );
 }
 
+function ModuleProperty({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <div className="flex items-start justify-between gap-3 rounded-md bg-brand-paper px-3 py-2">
+      <span className="shrink-0 text-brand-charcoal/55">{label}</span>
+      <span className="text-right font-medium text-brand-charcoal">{value}</span>
+    </div>
+  );
+}
+
 export function ProjectDetailScreen() {
   const { id } = useParams<{ id: string }>();
-  const { data, updateProject } = useStore();
+  const { data, updateProject, addKpi } = useStore();
   const [tab, setTab] = useState<"control" | "tareas" | "gantt" | "juntas" | "kpis">("control");
+  const [showKpiForm, setShowKpiForm] = useState(false);
   const project = data.projects.find((item) => item.id === id);
   if (!project) return <EmptyState title="Proyecto no encontrado" detail="Revisa el proyecto seleccionado." />;
   const client = data.clients.find((item) => item.id === project.clientId);
   const tasks = data.tasks.filter((task) => task.projectId === project.id);
   const phases = data.phases.filter((phase) => phase.projectId === project.id);
-  const kpis = data.kpis.filter((kpi) => project.kpiIds.includes(kpi.id));
+  const kpis = data.kpis.filter((kpi) => project.kpiIds.includes(kpi.id) || kpi.projectId === project.id);
   const meetings = data.meetings.filter((meeting) => meeting.projectId === project.id);
+  const assignedRecipe = data.recipes.find((recipe) => recipe.id === project.assignedRecipeId);
 
   return (
     <>
@@ -2959,6 +3112,26 @@ export function ProjectDetailScreen() {
                 <option value="develop">D - Develop</option>
               </Select>
             </Field>
+            <Field label="Receta del proyecto">
+              <Select value={project.assignedRecipeId ?? ""} onChange={(event) => updateProject(project.id, { assignedRecipeId: event.currentTarget.value || undefined })}>
+                <option value="">Proyecto personalizado sin receta base</option>
+                {data.recipes.map((recipe) => <option key={recipe.id} value={recipe.id}>{recipe.name}</option>)}
+              </Select>
+            </Field>
+            {assignedRecipe ? (
+              <div className="rounded-lg border border-brand-mist bg-brand-paper p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-brand-charcoal">{assignedRecipe.name}</p>
+                    <p className="mt-1 text-sm leading-6 text-brand-charcoal/65">{assignedRecipe.problem}</p>
+                  </div>
+                  <Link href="/recetario" className="text-sm font-medium text-brand-navy hover:underline">Editar recetario</Link>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {assignedRecipe.kpis.map((kpi) => <Badge key={kpi} tone="blue">{kpi}</Badge>)}
+                </div>
+              </div>
+            ) : null}
             <Field label="Hipotesis inicial">
               <TextArea value={project.initialHypothesis ?? ""} onChange={(event) => updateProject(project.id, { initialHypothesis: event.target.value })} />
             </Field>
@@ -3056,8 +3229,64 @@ export function ProjectDetailScreen() {
         </Panel>
       ) : null}
       {tab === "kpis" ? (
-        <div className="mt-6 grid gap-4 md:grid-cols-2">
-          {kpis.map((kpi) => <Panel key={kpi.id}><PanelHeader title={kpi.name} description={kpi.description} action={<Badge tone={statusTone(kpi.status)}>{kpi.status}</Badge>} /><div className="p-5"><KpiTrend measurements={data.kpiMeasurements.filter((item) => item.kpiId === kpi.id)} target={kpi.target} /></div></Panel>)}
+        <div className="mt-6 space-y-4">
+          <Panel>
+            <PanelHeader
+              title="KPIs del proyecto"
+              description="Las recetas sugieren indicadores; aqui LC define los KPIs reales de exito para este cliente."
+              action={<Button onClick={() => setShowKpiForm((value) => !value)}><Plus className="h-4 w-4" />Nuevo KPI</Button>}
+            />
+            {assignedRecipe ? (
+              <div className="border-b border-brand-mist bg-brand-paper px-5 py-4">
+                <p className="text-xs font-semibold uppercase text-brand-charcoal/45">Sugerencias desde receta</p>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {assignedRecipe.kpis.map((kpi) => <Badge key={kpi} tone="blue">{kpi}</Badge>)}
+                </div>
+              </div>
+            ) : null}
+            {showKpiForm ? (
+              <form
+                className="grid gap-4 border-b border-brand-mist p-5 md:grid-cols-2"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const form = new FormData(event.currentTarget);
+                  addKpi({
+                    clientId: project.clientId,
+                    projectId: project.id,
+                    name: String(form.get("name")),
+                    description: String(form.get("description")),
+                    formula: String(form.get("formula")),
+                    currentValue: Number(form.get("currentValue") || 0),
+                    target: Number(form.get("target") || 0),
+                    unit: String(form.get("unit") || ""),
+                    frequency: String(form.get("frequency") || "Semanal"),
+                    owner: String(form.get("owner") || project.owner),
+                    source: String(form.get("source") || "Definido en proyecto"),
+                    status: "alerta",
+                  });
+                  setShowKpiForm(false);
+                }}
+              >
+                <Field label="Nombre del KPI"><TextInput name="name" required /></Field>
+                <Field label="Responsable"><TextInput name="owner" defaultValue={project.owner} /></Field>
+                <div className="md:col-span-2"><Field label="Descripcion"><TextArea name="description" required /></Field></div>
+                <Field label="Formula"><TextInput name="formula" placeholder="Ej. Ventas cerradas / oportunidades" /></Field>
+                <Field label="Fuente / baseline"><TextInput name="source" placeholder="CRM, Excel, sistema del cliente..." /></Field>
+                <Field label="Valor actual"><TextInput name="currentValue" type="number" defaultValue={0} /></Field>
+                <Field label="Meta"><TextInput name="target" type="number" defaultValue={100} /></Field>
+                <Field label="Unidad"><TextInput name="unit" placeholder="%, dias, $, clientes..." /></Field>
+                <Field label="Frecuencia"><TextInput name="frequency" defaultValue="Semanal" /></Field>
+                <div className="flex justify-end gap-2 md:col-span-2">
+                  <Button type="button" variant="secondary" onClick={() => setShowKpiForm(false)}>Cancelar</Button>
+                  <Button>Guardar KPI</Button>
+                </div>
+              </form>
+            ) : null}
+          </Panel>
+          <div className="grid gap-4 md:grid-cols-2">
+            {kpis.map((kpi) => <Panel key={kpi.id}><PanelHeader title={kpi.name} description={kpi.description} action={<Badge tone={statusTone(kpi.status)}>{kpi.status}</Badge>} /><div className="space-y-4 p-5"><div className="grid gap-3 md:grid-cols-3"><Stat label="Actual" value={`${kpi.currentValue}${kpi.unit}`} detail={kpi.source} /><Stat label="Meta" value={`${kpi.target}${kpi.unit}`} detail={kpi.frequency} tone="green" /><Stat label="Formula" value={kpi.formula || "Manual"} detail={kpi.owner} tone="blue" /></div><KpiTrend measurements={data.kpiMeasurements.filter((item) => item.kpiId === kpi.id)} target={kpi.target} /></div></Panel>)}
+            {!kpis.length ? <ActionEmptyState icon={<LineChart className="h-5 w-5" />} title="Sin KPIs definidos" detail="Agrega indicadores propios para este proyecto. Puedes tomar ideas de la receta, pero deben validarse con el cliente." action={<Button onClick={() => setShowKpiForm(true)}>Definir primer KPI</Button>} /> : null}
+          </div>
         </div>
       ) : null}
     </>

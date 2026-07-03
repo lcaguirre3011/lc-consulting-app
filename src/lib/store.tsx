@@ -19,6 +19,7 @@ import type {
   Expense,
   IntakeForm,
   Invoice,
+  Kpi,
   Lead,
   LeadStage,
   Project,
@@ -91,6 +92,8 @@ interface StoreContextValue {
   updateLead: (leadId: string, patch: Partial<Lead>) => void;
   updateTaskStatus: (taskId: string, status: TaskStatus) => void;
   updateProject: (projectId: string, patch: Partial<Project>) => void;
+  addKpi: (kpi: Omit<Kpi, "id">) => string;
+  updateIntakeForm: (intakeId: string, patch: Partial<IntakeForm>) => void;
   updateDiagnosis: (diagnosisId: string, patch: Partial<Diagnosis>) => void;
   addProject: (project: Omit<Project, "id" | "progress" | "risks" | "kpiIds">) => string;
   upsertRecipe: (recipe: Recipe) => void;
@@ -304,6 +307,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     }));
   }, []);
 
+  const addKpi = useCallback((kpi: Omit<Kpi, "id">) => {
+    const kpiId = uid("kpi");
+    setData((current) => ({
+      ...current,
+      kpis: [{ ...kpi, id: kpiId }, ...current.kpis],
+      projects: kpi.projectId
+        ? current.projects.map((project) =>
+            project.id === kpi.projectId
+              ? { ...project, kpiIds: Array.from(new Set([...project.kpiIds, kpiId])) }
+              : project,
+          )
+        : current.projects,
+    }));
+    return kpiId;
+  }, []);
+
+  const updateIntakeForm = useCallback((intakeId: string, patch: Partial<IntakeForm>) => {
+    setData((current) => ({
+      ...current,
+      intakeForms: current.intakeForms.map((form) =>
+        form.id === intakeId ? { ...form, ...patch } : form,
+      ),
+    }));
+  }, []);
+
   const updateDiagnosis = useCallback((diagnosisId: string, patch: Partial<Diagnosis>) => {
     setData((current) => {
       const currentDiagnosis = current.diagnoses.find((diagnosis) => diagnosis.id === diagnosisId);
@@ -478,6 +506,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateLead,
       updateTaskStatus,
       updateProject,
+      addKpi,
+      updateIntakeForm,
       updateDiagnosis,
       addProject,
       upsertRecipe,
@@ -500,6 +530,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       updateLead,
       updateTaskStatus,
       updateProject,
+      addKpi,
+      updateIntakeForm,
       updateDiagnosis,
       addProject,
       upsertRecipe,

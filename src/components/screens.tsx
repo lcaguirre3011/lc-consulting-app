@@ -528,6 +528,15 @@ export function CrmScreen() {
   const [responsibleFilter, setResponsibleFilter] = useState("todos");
   const [industryFilter, setIndustryFilter] = useState("todas");
   const [dateFilter, setDateFilter] = useState("todas");
+  const [pipelineView, setPipelineView] = useState<"kanban" | "tabla">("kanban");
+  const [kanbanFields, setKanbanFields] = useState({
+    contact: true,
+    pain: true,
+    value: true,
+    fit: true,
+    nextStep: true,
+    lastActivity: true,
+  });
 
   const today = new Date().toISOString().slice(0, 10);
   const activeLeads = data.leads.filter((lead) => !["cliente ganado", "perdido"].includes(lead.stage));
@@ -689,6 +698,42 @@ export function CrmScreen() {
       ) : null}
 
       {tab === "pipeline" ? (
+        <div className="space-y-4">
+          <div className="flex flex-col gap-3 rounded-lg border border-brand-charcoal/10 bg-white p-3 shadow-sm xl:flex-row xl:items-center xl:justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium text-brand-charcoal/70">Vista</span>
+              <IconToggle active={pipelineView === "kanban"} label="Vista Kanban" onClick={() => setPipelineView("kanban")}>
+                <LayoutGrid className="h-4 w-4" />
+              </IconToggle>
+              <IconToggle active={pipelineView === "tabla"} label="Vista tabla" onClick={() => setPipelineView("tabla")}>
+                <Table2 className="h-4 w-4" />
+              </IconToggle>
+            </div>
+            {pipelineView === "kanban" ? (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-sm text-brand-charcoal/70">
+                <span className="font-medium text-brand-charcoal/75">Mostrar en tarjeta</span>
+                {Object.entries({
+                  contact: "Contacto",
+                  pain: "Dolor",
+                  value: "Valor",
+                  fit: "Fit",
+                  nextStep: "Próxima acción",
+                  lastActivity: "Última actividad",
+                }).map(([key, label]) => (
+                  <label key={key} className="inline-flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      checked={kanbanFields[key as keyof typeof kanbanFields]}
+                      onChange={(event) => setKanbanFields((current) => ({ ...current, [key]: event.target.checked }))}
+                    />
+                    {label}
+                  </label>
+                ))}
+              </div>
+            ) : null}
+          </div>
+
+          {pipelineView === "kanban" ? (
         <div className="-mx-4 overflow-x-auto px-4 pb-3">
           <div className="flex min-w-max gap-4">
           {crmPipelineColumns.map((column) => {
@@ -728,11 +773,16 @@ export function CrmScreen() {
                           <button type="button" onClick={() => setEditingLead(lead)} className="block max-w-full text-left">
                             <h3 className="truncate text-sm font-semibold text-brand-charcoal hover:text-brand-navy">{lead.company}</h3>
                           </button>
-                          <p className="mt-1 truncate text-xs text-brand-charcoal/50">{leadIndustry(lead)} - {lead.contactName}</p>
+                          {kanbanFields.contact ? (
+                            <p className="mt-1 truncate text-xs text-brand-charcoal/50">{leadIndustry(lead)} - {lead.contactName}</p>
+                          ) : null}
                         </div>
                         <GripVertical className="h-4 w-4 shrink-0 text-brand-charcoal/25 transition group-hover:text-brand-charcoal/50" />
                       </div>
-                      <p className="mt-3 line-clamp-3 text-sm leading-5 text-brand-charcoal/68">{leadPain(lead)}</p>
+                      {kanbanFields.pain ? (
+                        <p className="mt-3 line-clamp-3 text-sm leading-5 text-brand-charcoal/68">{leadPain(lead)}</p>
+                      ) : null}
+                      {kanbanFields.value ? (
                       <div className="mt-4 grid grid-cols-2 gap-2">
                         <div className="rounded-md bg-brand-paper p-2">
                           <p className="text-[10px] font-semibold uppercase text-brand-charcoal/40">Valor</p>
@@ -743,15 +793,24 @@ export function CrmScreen() {
                           <p className="mt-1 text-sm font-semibold text-brand-charcoal">{lead.closeProbability}%</p>
                         </div>
                       </div>
+                      ) : null}
+                      {kanbanFields.fit ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Badge tone={leadFitTone(lead)}>Fit {leadFitLabel(lead)}</Badge>
                         <Badge tone={lead.intake ? "green" : "yellow"}>{lead.intake ? "F1 recibido" : "F1 pendiente"}</Badge>
                       </div>
+                      ) : null}
+                      {kanbanFields.nextStep || kanbanFields.lastActivity ? (
                       <div className="mt-4 border-t border-brand-charcoal/10 pt-3">
+                        {kanbanFields.nextStep ? (
+                        <>
                         <p className="text-[10px] font-semibold uppercase text-brand-charcoal/40">Proxima accion</p>
                         <p className="mt-1 text-xs leading-5 text-brand-charcoal/65">{lead.nextStep}</p>
-                        <p className="mt-2 text-xs text-brand-charcoal/40">Ultima actividad: {shortDate(lead.lastInteraction)}</p>
+                        </>
+                        ) : null}
+                        {kanbanFields.lastActivity ? <p className="mt-2 text-xs text-brand-charcoal/40">Ultima actividad: {shortDate(lead.lastInteraction)}</p> : null}
                       </div>
+                      ) : null}
                       <div className="mt-3 flex flex-wrap gap-2">
                         <Button variant="ghost" onClick={() => setEditingLead(lead)}>Editar</Button>
                         {lead.stage === "sesion inicial agendada" ? (
@@ -775,6 +834,50 @@ export function CrmScreen() {
           })}
           </div>
         </div>
+          ) : (
+            <Panel>
+              <PanelHeader title="Pipeline en tabla" description="Actualiza etapa, contacto, valor y seguimiento sin abrir cada tarjeta." />
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[1320px] text-left text-sm">
+                  <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
+                    <tr>
+                      <th className="px-5 py-3">Empresa</th>
+                      <th className="px-5 py-3">Etapa</th>
+                      <th className="px-5 py-3">Contacto</th>
+                      <th className="px-5 py-3">Puesto</th>
+                      <th className="px-5 py-3">Email</th>
+                      <th className="px-5 py-3">WhatsApp</th>
+                      <th className="px-5 py-3">Valor</th>
+                      <th className="px-5 py-3">Prob.</th>
+                      <th className="px-5 py-3">Próxima acción</th>
+                      <th className="px-5 py-3">Abrir</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-brand-mist">
+                    {visibleLeads.map((lead) => (
+                      <tr key={lead.id} className="hover:bg-brand-gold/10">
+                        <td className="px-5 py-4 font-medium text-brand-charcoal">{lead.company}</td>
+                        <td className="px-5 py-4">
+                          <Select className="min-w-48" value={lead.stage} onChange={(event) => moveLeadThroughPipeline(lead.id, event.currentTarget.value as LeadStage)}>
+                            {leadStages.map((item) => <option key={item}>{item}</option>)}
+                          </Select>
+                        </td>
+                        <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactName} onBlur={(event) => updateLead(lead.id, { contactName: event.currentTarget.value })} /></td>
+                        <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactRole ?? ""} onBlur={(event) => updateLead(lead.id, { contactRole: event.currentTarget.value })} /></td>
+                        <td className="px-5 py-4"><TextInput className="min-w-52" type="email" defaultValue={lead.email} onBlur={(event) => updateLead(lead.id, { email: event.currentTarget.value })} /></td>
+                        <td className="px-5 py-4"><TextInput className="min-w-36" defaultValue={lead.phone} onBlur={(event) => updateLead(lead.id, { phone: event.currentTarget.value })} /></td>
+                        <td className="px-5 py-4"><TextInput className="w-32" type="number" defaultValue={lead.estimatedValue} onBlur={(event) => updateLead(lead.id, { estimatedValue: Number(event.currentTarget.value) })} /></td>
+                        <td className="px-5 py-4"><TextInput className="w-20" type="number" min="0" max="100" defaultValue={lead.closeProbability} onBlur={(event) => updateLead(lead.id, { closeProbability: Number(event.currentTarget.value) })} /></td>
+                        <td className="px-5 py-4"><TextInput className="min-w-64" defaultValue={lead.nextStep} onBlur={(event) => updateLead(lead.id, { nextStep: event.currentTarget.value })} /></td>
+                        <td className="px-5 py-4"><Button variant="ghost" onClick={() => setEditingLead(lead)}>Abrir</Button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </Panel>
+          )}
+        </div>
       ) : null}
 
       {tab === "leads" ? (
@@ -782,11 +885,14 @@ export function CrmScreen() {
           <Panel>
             <PanelHeader title="Leads" description="Base operativa: edita valores principales, revisa formularios y da seguimiento desde una sola vista." />
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1180px] text-left text-sm">
+              <table className="w-full min-w-[1520px] text-left text-sm">
                 <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
                   <tr>
                     <th className="px-5 py-3">Empresa</th>
                     <th className="px-5 py-3">Contacto</th>
+                    <th className="px-5 py-3">Puesto</th>
+                    <th className="px-5 py-3">Email</th>
+                    <th className="px-5 py-3">WhatsApp</th>
                     <th className="px-5 py-3">Etapa</th>
                     <th className="px-5 py-3">Dolor</th>
                     <th className="px-5 py-3">Paquete</th>
@@ -798,9 +904,12 @@ export function CrmScreen() {
                 <tbody className="divide-y divide-brand-mist">
                   {visibleLeads.map((lead) => (
                     <tr key={lead.id} className="hover:bg-brand-gold/10">
-                      <td className="px-5 py-4"><TextInput className="min-w-44" defaultValue={lead.company} onBlur={(event) => updateLead(lead.id, { company: event.currentTarget.value })} /></td>
-                      <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactName} onBlur={(event) => updateLead(lead.id, { contactName: event.currentTarget.value })} /></td>
-                      <td className="px-5 py-4">
+                    <td className="px-5 py-4"><TextInput className="min-w-44" defaultValue={lead.company} onBlur={(event) => updateLead(lead.id, { company: event.currentTarget.value })} /></td>
+                    <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactName} onBlur={(event) => updateLead(lead.id, { contactName: event.currentTarget.value })} /></td>
+                    <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactRole ?? ""} onBlur={(event) => updateLead(lead.id, { contactRole: event.currentTarget.value })} /></td>
+                    <td className="px-5 py-4"><TextInput className="min-w-52" type="email" defaultValue={lead.email} onBlur={(event) => updateLead(lead.id, { email: event.currentTarget.value })} /></td>
+                    <td className="px-5 py-4"><TextInput className="min-w-36" defaultValue={lead.phone} onBlur={(event) => updateLead(lead.id, { phone: event.currentTarget.value })} /></td>
+                    <td className="px-5 py-4">
                         <Select
                           className="min-w-48"
                           value={lead.stage}

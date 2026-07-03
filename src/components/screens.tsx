@@ -2854,25 +2854,34 @@ export function RecipesScreen() {
 }
 
 export function RecipesEditorScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, upsertRecipe } = useStore();
   const [editing, setEditing] = useState<Recipe | null>(null);
+  const creatingRecipe = searchParams.get("action") === "nueva";
+  const newRecipe: Recipe = {
+    id: "",
+    name: "Nueva receta",
+    problem: "",
+    symptoms: [],
+    steps: [],
+    kpis: [],
+    deliverables: [],
+    durationWeeks: 2,
+    difficulty: "media",
+    suggestedTasks: [],
+    templates: [],
+  };
+  const editorRecipe = editing ?? (creatingRecipe ? newRecipe : null);
+  const closeEditor = () => {
+    setEditing(null);
+    if (creatingRecipe) router.replace("/recetario");
+  };
 
   return (
     <>
       <PageHeader title="Recetario de consultoría" description="Plantillas editables para convertir diagnósticos en ejecución.">
-        <Button onClick={() => setEditing({
-          id: "",
-          name: "Nueva receta",
-          problem: "",
-          symptoms: [],
-          steps: [],
-          kpis: [],
-          deliverables: [],
-          durationWeeks: 2,
-          difficulty: "media",
-          suggestedTasks: [],
-          templates: [],
-        })}><Plus className="h-4 w-4" />Nueva receta</Button>
+        <Button onClick={() => router.replace("/recetario?action=nueva")}><Plus className="h-4 w-4" />Nueva receta</Button>
       </PageHeader>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {data.recipes.map((recipe) => (
@@ -2890,13 +2899,13 @@ export function RecipesEditorScreen() {
           </Panel>
         ))}
       </div>
-      {editing ? (
+      {editorRecipe ? (
         <RecipeEditor
-          recipe={editing}
-          onClose={() => setEditing(null)}
+          recipe={editorRecipe}
+          onClose={closeEditor}
           onSave={(recipe) => {
             upsertRecipe(recipe);
-            setEditing(null);
+            closeEditor();
           }}
         />
       ) : null}
@@ -3553,19 +3562,24 @@ export function DeliverablesScreen() {
 }
 
 export function ConsultantsScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { data, addConsultant } = useStore();
-  const [view, setView] = useState<"kanban" | "lista">("kanban");
+  const view = searchParams.get("view") === "lista" ? "lista" : "kanban";
   const [showForm, setShowForm] = useState(false);
   const statuses = ["disponible", "ocupado", "pausado"] as const;
+  const selectConsultantsView = (nextView: "kanban" | "lista") => {
+    router.replace(`/consultores?view=${nextView}`);
+  };
 
   return (
     <>
       <PageHeader title="Consultores" description="Capacidad, especialidades y proyectos asignados por consultor.">
         <div className="flex flex-wrap gap-2">
-          <IconToggle active={view === "kanban"} label="Vista kanban" onClick={() => setView("kanban")}>
+          <IconToggle active={view === "kanban"} label="Vista kanban" onClick={() => selectConsultantsView("kanban")}>
             <Columns3 className="h-4 w-4" />
           </IconToggle>
-          <IconToggle active={view === "lista"} label="Vista lista" onClick={() => setView("lista")}>
+          <IconToggle active={view === "lista"} label="Vista lista" onClick={() => selectConsultantsView("lista")}>
             <Table2 className="h-4 w-4" />
           </IconToggle>
           <Button onClick={() => setShowForm((value) => !value)}><Plus className="h-4 w-4" />Registrar</Button>
@@ -3669,7 +3683,9 @@ function ConsultantCard({ consultantId }: { consultantId: string }) {
 }
 
 export function FinancialsScreen() {
+  const searchParams = useSearchParams();
   const { data } = useStore();
+  const view = ["resumen", "facturas", "gastos"].includes(searchParams.get("view") ?? "") ? searchParams.get("view") : "resumen";
   const invoiced = data.invoices.filter((invoice) => invoice.status !== "cancelada").reduce((sum, invoice) => sum + invoice.total, 0);
   const paid = data.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const expenses = data.expenses.reduce((sum, expense) => sum + expense.amount, 0);
@@ -3683,6 +3699,7 @@ export function FinancialsScreen() {
         title="Finanzas"
         description="Vista global del negocio. Cada factura, pago, gasto e ingreso pertenece a un cliente o proyecto especifico."
       />
+      {view === "resumen" ? (
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
         <Stat label="Ingresos facturados" value={money(invoiced)} detail={`${data.invoices.length} facturas`} tone="blue" />
         <Stat label="Cobrado" value={money(paid)} detail={`${data.payments.length} pagos`} tone="green" />
@@ -3690,8 +3707,10 @@ export function FinancialsScreen() {
         <Stat label="Gastos" value={money(expenses)} detail={`${data.expenses.length} registros`} tone="red" />
         <Stat label="Valor activo" value={money(activeProjectValue)} detail="Proyectos en cartera" tone="blue" />
       </div>
+      ) : null}
 
-      <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_0.85fr]">
+      <div className={cn("grid gap-6", view === "resumen" ? "mt-6 xl:grid-cols-[1fr_0.85fr]" : "xl:grid-cols-1")}>
+        {view === "resumen" || view === "facturas" ? (
         <Panel>
           <PanelHeader title="Cartera de facturas" description="Cobranza vinculada a clientes y proyectos." />
           <div className="overflow-x-auto">
@@ -3718,7 +3737,9 @@ export function FinancialsScreen() {
             </table>
           </div>
         </Panel>
+        ) : null}
 
+        {view === "resumen" || view === "gastos" ? (
         <Panel>
           <PanelHeader title="Gastos por proyecto" description="Egresos internos y reembolsables asociados a clientes." />
           <div className="space-y-3 p-5">
@@ -3740,15 +3761,18 @@ export function FinancialsScreen() {
             })}
           </div>
         </Panel>
+        ) : null}
       </div>
     </>
   );
 }
 
 export function ReportsScreen() {
+  const searchParams = useSearchParams();
   const { data, generateReport } = useStore();
   const [period, setPeriod] = useState("Julio 2026");
   const [type, setType] = useState<"ejecutivo cliente" | "avance proyecto" | "kpis" | "tareas atrasadas" | "crm comercial" | "mensual consultoria">("mensual consultoria");
+  const view = searchParams.get("view") === "historial" ? "historial" : "generador";
 
   async function downloadPdf(reportId: string) {
     const report = data.reports.find((item) => item.id === reportId);
@@ -3775,6 +3799,7 @@ export function ReportsScreen() {
   return (
     <>
       <PageHeader title="Reportes" description="Genera resumen por periodo definido y descarga PDF real." />
+      {view === "generador" ? (
       <Panel className="mb-5">
         <PanelHeader title="Generar reporte" description="Define periodo y tipo de resumen." />
         <div className="grid gap-4 p-5 md:grid-cols-[1fr_1fr_auto]">
@@ -3794,6 +3819,7 @@ export function ReportsScreen() {
           </div>
         </div>
       </Panel>
+      ) : null}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {data.reports.map((report) => (
           <Panel key={report.id}>
@@ -3811,8 +3837,12 @@ export function ReportsScreen() {
 }
 
 export function SettingsScreen() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { user, data, resetDemo, addInvoice, addExpense } = useStore();
-  const [tab, setTab] = useState<"sistema" | "equipo" | "paquetes" | "finanzas">("sistema");
+  const tab = ["sistema", "equipo", "paquetes", "finanzas"].includes(searchParams.get("tab") ?? "")
+    ? (searchParams.get("tab") as "sistema" | "equipo" | "paquetes" | "finanzas")
+    : "sistema";
   const hasEnv = Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY);
   const totals = useMemo(() => [
     ["Leads", data.leads.length],
@@ -3834,7 +3864,7 @@ export function SettingsScreen() {
       <PageHeader title="Configuracion" description="ERP interno de LC: sistema, equipo, paquetes, facturacion, gastos y control administrativo." />
       <div className="mb-6 flex flex-wrap gap-2">
         {tabs.map((item) => (
-          <Button key={item} variant={tab === item ? "primary" : "secondary"} onClick={() => setTab(item)}>{item}</Button>
+          <Button key={item} variant={tab === item ? "primary" : "secondary"} onClick={() => router.replace(`/configuracion?tab=${item}`)}>{item}</Button>
         ))}
       </div>
 

@@ -4,9 +4,16 @@ import { StoreProvider, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
   BriefcaseBusiness,
+  CheckCircle2,
   CircleDollarSign,
+  ClipboardCheck,
+  Columns3,
   FileBarChart2,
+  FileCheck2,
+  GanttChart,
   Home,
+  LayoutGrid,
+  LineChart,
   Menu,
   NotebookTabs,
   Settings,
@@ -26,12 +33,20 @@ import { Button } from "./ui";
 
 const moduleItems: { href: string; label: string; icon: LucideIcon }[] = [
   { href: "/app", label: "Inicio", icon: Home },
+  { href: "/dashboard", label: "Dashboard", icon: LayoutGrid },
   { href: "/crm", label: "CRM", icon: Target },
   { href: "/clientes", label: "Clientes", icon: Users },
   { href: "/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
+  { href: "/gantt", label: "Proyectos", icon: GanttChart },
+  { href: "/tareas", label: "Proyectos", icon: CheckCircle2 },
   { href: "/recetario", label: "Recetario", icon: NotebookTabs },
   { href: "/finanzas", label: "Finanzas", icon: CircleDollarSign },
   { href: "/reportes", label: "Reportes", icon: FileBarChart2 },
+  { href: "/kpis", label: "Medicion", icon: LineChart },
+  { href: "/diagnosticos", label: "Medicion", icon: ClipboardCheck },
+  { href: "/diagnostico", label: "Medicion", icon: ClipboardCheck },
+  { href: "/reuniones", label: "Sesiones", icon: Video },
+  { href: "/consultores", label: "Equipo", icon: Users },
   { href: "/configuracion", label: "Configuracion", icon: Settings },
 ];
 
@@ -47,19 +62,80 @@ const moduleNavItems: Record<string, { href: string; label: string; icon: Lucide
   "/proyectos": [
     { href: "/proyectos?view=modulos", label: "Modulos", icon: BriefcaseBusiness },
     { href: "/proyectos?view=tabla", label: "Tabla", icon: Table2 },
+    { href: "/proyectos?view=gantt", label: "Gantt", icon: GanttChart },
+    { href: "/proyectos?view=tareas", label: "Tareas", icon: CheckCircle2 },
+  ],
+  "/gantt": [
+    { href: "/proyectos?view=modulos", label: "Modulos", icon: BriefcaseBusiness },
+    { href: "/proyectos?view=tabla", label: "Tabla", icon: Table2 },
+    { href: "/proyectos?view=gantt", label: "Gantt", icon: GanttChart },
+    { href: "/proyectos?view=tareas", label: "Tareas", icon: CheckCircle2 },
+  ],
+  "/tareas": [
+    { href: "/proyectos?view=modulos", label: "Modulos", icon: BriefcaseBusiness },
+    { href: "/proyectos?view=tabla", label: "Tabla", icon: Table2 },
+    { href: "/proyectos?view=gantt", label: "Gantt", icon: GanttChart },
+    { href: "/proyectos?view=tareas", label: "Tareas", icon: CheckCircle2 },
   ],
   "/recetario": [
     { href: "/recetario", label: "Recetas", icon: NotebookTabs },
+    { href: "/recetario?action=nueva", label: "Nueva receta", icon: FileCheck2 },
   ],
   "/finanzas": [
-    { href: "/finanzas", label: "Finanzas", icon: CircleDollarSign },
+    { href: "/finanzas?view=resumen", label: "Resumen", icon: CircleDollarSign },
+    { href: "/finanzas?view=facturas", label: "Facturas", icon: FileCheck2 },
+    { href: "/finanzas?view=gastos", label: "Gastos", icon: FileBarChart2 },
   ],
   "/reportes": [
-    { href: "/reportes", label: "Reportes", icon: FileBarChart2 },
+    { href: "/reportes?view=generador", label: "Generador", icon: FileBarChart2 },
+    { href: "/reportes?view=historial", label: "Historial", icon: NotebookTabs },
+  ],
+  "/kpis": [
+    { href: "/kpis", label: "KPIs", icon: LineChart },
+    { href: "/reportes?view=historial", label: "Reportes", icon: FileBarChart2 },
+    { href: "/diagnosticos", label: "Diagnosticos", icon: ClipboardCheck },
+  ],
+  "/diagnosticos": [
+    { href: "/diagnosticos", label: "Diagnosticos", icon: ClipboardCheck },
+    { href: "/kpis", label: "KPIs", icon: LineChart },
+    { href: "/reportes?view=historial", label: "Reportes", icon: FileBarChart2 },
+  ],
+  "/diagnostico": [
+    { href: "/diagnostico", label: "Formulario", icon: ClipboardCheck },
+    { href: "/diagnosticos", label: "Diagnosticos", icon: ClipboardCheck },
+  ],
+  "/reuniones": [
+    { href: "/reuniones", label: "Sesiones", icon: Video },
+    { href: "/proyectos?view=tareas", label: "Tareas", icon: CheckCircle2 },
+  ],
+  "/consultores": [
+    { href: "/consultores?view=kanban", label: "Kanban", icon: Columns3 },
+    { href: "/consultores?view=lista", label: "Lista", icon: Table2 },
   ],
   "/configuracion": [
-    { href: "/configuracion", label: "Configuracion", icon: Settings },
+    { href: "/configuracion?tab=sistema", label: "Sistema", icon: Settings },
+    { href: "/configuracion?tab=equipo", label: "Equipo", icon: Users },
+    { href: "/configuracion?tab=paquetes", label: "Paquetes", icon: NotebookTabs },
+    { href: "/configuracion?tab=finanzas", label: "Finanzas", icon: CircleDollarSign },
   ],
+  "/dashboard": [
+    { href: "/dashboard", label: "Resumen gerencial", icon: LayoutGrid },
+    { href: "/crm?tab=pipeline", label: "Comercial", icon: Target },
+    { href: "/proyectos?view=modulos", label: "Ejecucion", icon: BriefcaseBusiness },
+    { href: "/finanzas?view=resumen", label: "Finanzas", icon: CircleDollarSign },
+  ],
+};
+
+const defaultModuleHref: Record<string, string> = {
+  "/crm": "/crm?tab=pipeline",
+  "/clientes": "/clientes?section=empresas",
+  "/proyectos": "/proyectos?view=modulos",
+  "/gantt": "/proyectos?view=gantt",
+  "/tareas": "/proyectos?view=tareas",
+  "/consultores": "/consultores?view=kanban",
+  "/finanzas": "/finanzas?view=resumen",
+  "/reportes": "/reportes?view=generador",
+  "/configuracion": "/configuracion?tab=sistema",
 };
 
 function ShellContent({ children }: { children: ReactNode }) {
@@ -97,10 +173,8 @@ function ShellContent({ children }: { children: ReactNode }) {
       {contextualItems.map((item) => {
         const Icon = item.icon;
         const [itemPath, itemQuery] = item.href.split("?");
-        const defaultActive =
-          (!searchParams.toString() && pathname === "/crm" && item.href === "/crm?tab=pipeline") ||
-          (!searchParams.toString() && pathname === "/clientes" && item.href === "/clientes?section=empresas") ||
-          (!searchParams.toString() && pathname === "/proyectos" && item.href === "/proyectos?view=modulos");
+        const defaultHref = currentModule ? defaultModuleHref[currentModule.href] : undefined;
+        const defaultActive = !searchParams.toString() && item.href === defaultHref && (pathname === currentModule?.href || pathname.startsWith(`${currentModule?.href}/`));
         const active =
           currentHref === item.href ||
           (!itemQuery && pathname === itemPath) ||

@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { consultingPackages, kpiTone, leadStages, taskStatuses } from "@/lib/demo-data";
 import { useStore } from "@/lib/store";
-import type { Diagnosis, Health, Lead, LeadStage, PackageType, Priority, ProjectStatus, Recipe, TaskStatus } from "@/lib/types";
+import type { Diagnosis, DiscoveryForm, Health, Lead, LeadStage, PackageType, Priority, ProjectStatus, Recipe, TaskStatus } from "@/lib/types";
 import { cn, daysLate, money, pct, shortDate } from "@/lib/utils";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -37,6 +37,7 @@ import {
   Save,
   Send,
   Table2,
+  Video,
 } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
@@ -111,6 +112,63 @@ function yearsFromOperatingTime(value: string) {
   if (value.includes("3 y 5")) return 5;
   if (value.includes("MÃ¡s") || value.includes("Más")) return 6;
   return 0;
+}
+
+const warningSignalOptions = [
+  "Expectativas de resultado irreales",
+  "Baja disposicion a participar",
+  "Presupuesto insuficiente o no confirmado",
+  "Scope creep probable",
+  "Decisor real no estaba en la sesion",
+  "Dependencia excesiva de LC para resultados",
+  "Ninguna senal de alerta",
+];
+
+function emptyDiscovery(): DiscoveryForm {
+  return {
+    businessModel: "",
+    monthlyRevenue: "",
+    employeeCount: 0,
+    activeClients: 0,
+    mainStrength: "",
+    describedSymptom: "",
+    rootProblem: "",
+    previousAttempts: "",
+    urgency: "media",
+    urgencyImpact: "",
+    commercialBaseline: "",
+    operationalBaseline: "",
+    digitalBaseline: "",
+    successMetric: "",
+    metricDeadline: "",
+    recommendedPackage: "",
+    packageJustification: "",
+    weeklyHours: 0,
+    durationMonths: 0,
+    complexity: "3 - Media",
+    warningSignals: [],
+    sessionNotes: "",
+    finalDecision: "evaluacion",
+    decisionJustification: "",
+  };
+}
+
+function isDiscoveryComplete(discovery: DiscoveryForm) {
+  const required = [
+    discovery.businessModel,
+    discovery.describedSymptom,
+    discovery.rootProblem,
+    discovery.previousAttempts,
+    discovery.urgencyImpact,
+    discovery.commercialBaseline,
+    discovery.operationalBaseline,
+    discovery.digitalBaseline,
+    discovery.successMetric,
+    discovery.metricDeadline,
+    discovery.recommendedPackage,
+    discovery.packageJustification,
+  ];
+  return required.every((value) => String(value).trim().length > 0) && discovery.weeklyHours > 0 && discovery.durationMonths > 0;
 }
 
 export function LoginScreen() {
@@ -758,7 +816,18 @@ function LeadEditor({
             <h2 className="font-semibold text-brand-charcoal">{lead.company}</h2>
             <p className="text-sm text-brand-charcoal/60">Editar lead y expediente inicial</p>
           </div>
-          <Button variant="ghost" onClick={onClose}>Cerrar</Button>
+          <div className="flex items-center gap-2">
+            {lead.stage === "diagnostico agendado" ? (
+              <Link
+                href={`/sesion/lead/${lead.id}`}
+                className="inline-flex h-10 items-center justify-center gap-2 rounded-md bg-brand-navy px-3 text-sm font-medium text-white shadow-sm shadow-brand-navy/20"
+              >
+                <Video className="h-4 w-4" />
+                Iniciar sesion
+              </Link>
+            ) : null}
+            <Button variant="ghost" onClick={onClose}>Cerrar</Button>
+          </div>
         </div>
         <div className="grid gap-4 p-5 md:grid-cols-2">
           <div className="rounded-lg border border-brand-mist bg-brand-paper p-3 md:col-span-2">
@@ -1035,6 +1104,252 @@ export function PublicLeadFormScreen() {
         </Panel>
       </form>
     </main>
+  );
+}
+
+export function SessionModeScreen() {
+  const { id } = useParams<{ id: string }>();
+  const router = useRouter();
+  const { data, updateLead, moveLead, isReady } = useStore();
+  const lead = data.leads.find((item) => item.id === id);
+  const [discovery, setDiscovery] = useState<DiscoveryForm>(() => ({ ...emptyDiscovery(), ...(lead?.discovery ?? {}) }));
+  const [saved, setSaved] = useState(false);
+
+  if (!isReady) return <main className="min-h-screen bg-brand-paper" />;
+
+  if (!lead) {
+    return (
+      <main className="min-h-screen bg-brand-paper px-5 py-8">
+        <div className="mx-auto max-w-2xl">
+          <EmptyState title="Sesion no encontrada" detail="Regresa al CRM y abre la sesion desde la ficha del lead." />
+          <Button className="mt-4" onClick={() => router.push("/crm")}>Volver a CRM</Button>
+        </div>
+      </main>
+    );
+  }
+
+  const complete = isDiscoveryComplete(discovery);
+
+  const updateDiscovery = <Key extends keyof DiscoveryForm>(key: Key, value: DiscoveryForm[Key]) => {
+    setDiscovery((current) => ({ ...current, [key]: value }));
+    setSaved(false);
+  };
+
+  const saveDiscovery = (completed = false) => {
+    updateLead(lead.id, {
+      discovery: {
+        ...discovery,
+        completedAt: completed ? new Date().toISOString().slice(0, 10) : discovery.completedAt,
+      },
+      recommendedPackage: discovery.recommendedPackage as PackageType,
+      nextStep: complete ? "Descubrimiento completo. Convertir o enviar propuesta." : "Continuar sesion de descubrimiento.",
+    });
+    setSaved(true);
+  };
+
+  const toggleWarning = (value: string) => {
+    setDiscovery((current) => {
+      const exists = current.warningSignals.includes(value);
+      return {
+        ...current,
+        warningSignals: exists
+          ? current.warningSignals.filter((item) => item !== value)
+          : [...current.warningSignals, value],
+      };
+    });
+    setSaved(false);
+  };
+
+  return (
+    <main className="min-h-screen bg-brand-paper text-brand-charcoal">
+      <header className="sticky top-0 z-20 border-b border-brand-charcoal/10 bg-white/95 px-4 py-4 backdrop-blur">
+        <div className="mx-auto flex max-w-5xl flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-brand-navy">Modo sesion</p>
+            <h1 className="text-2xl font-semibold md:text-3xl">{lead.contactName} · {lead.company}</h1>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => router.push("/crm")}>Cerrar sesion</Button>
+            <Button variant="secondary" onClick={() => saveDiscovery(false)}>{saved ? "Guardado" : "Guardar avance"}</Button>
+            <Button
+              disabled={!complete}
+              onClick={() => {
+                saveDiscovery(true);
+                moveLead(lead.id, "cliente ganado");
+                router.push("/clientes");
+              }}
+            >
+              Convertir a cliente
+            </Button>
+          </div>
+        </div>
+      </header>
+
+      <div className="mx-auto grid max-w-5xl gap-6 px-4 py-6">
+        <Panel>
+          <PanelHeader title="Referencia del Filtro Inicial" description="Datos capturados antes de esta llamada. Solo lectura." />
+          <div className="grid gap-4 p-5 text-base md:grid-cols-2">
+            <ReadOnlyFact label="Problema principal" value={lead.intake?.mainProblem ?? lead.nextStep} />
+            <ReadOnlyFact label="Resultado esperado" value={lead.intake?.expectedResult ?? "Pendiente"} />
+            <ReadOnlyFact label="Industria" value={lead.intake?.industry ?? "Pendiente"} />
+            <ReadOnlyFact label="Tiempo operando" value={lead.intake?.operatingTime ?? `${lead.intake?.yearsOperating ?? 0} anos`} />
+            <ReadOnlyFact label="Como nos conocio" value={lead.intake?.howFoundUs ?? lead.source} />
+            <ReadOnlyFact label="Fit inicial" value={lead.intake?.internalFlag ?? "Pendiente"} />
+          </div>
+        </Panel>
+
+        <Panel>
+          <PanelHeader title="Formulario 2 - Descubrimiento" description="Para llenar en vivo durante la llamada de 60-90 minutos." />
+          <div className="grid gap-6 p-5">
+            <SessionSection title="A. El negocio real">
+              <Field label="¿Como genera dinero el negocio hoy?">
+                <TextArea className="text-base" value={discovery.businessModel} onChange={(event) => updateDiscovery("businessModel", event.target.value)} placeholder="Que vende, a quien, como cobra, canales principales" />
+              </Field>
+              <Field label="Ingresos mensuales aproximados">
+                <Select className="text-base" value={discovery.monthlyRevenue} onChange={(event) => updateDiscovery("monthlyRevenue", event.target.value)}>
+                  <option value="">Selecciona</option>
+                  <option>Menos de $50K MXN</option>
+                  <option>$50K-$150K</option>
+                  <option>$150K-$500K</option>
+                  <option>Mas de $500K</option>
+                  <option>No compartio</option>
+                </Select>
+              </Field>
+              <div className="grid gap-4 md:grid-cols-2">
+                <Field label="Numero de empleados">
+                  <TextInput className="text-base" type="number" value={discovery.employeeCount} onChange={(event) => updateDiscovery("employeeCount", Number(event.target.value))} />
+                </Field>
+                <Field label="Clientes activos actuales">
+                  <TextInput className="text-base" type="number" value={discovery.activeClients} onChange={(event) => updateDiscovery("activeClients", Number(event.target.value))} />
+                </Field>
+              </div>
+              <Field label="¿Que esta funcionando bien que NO debemos tocar?">
+                <TextArea className="text-base" value={discovery.mainStrength} onChange={(event) => updateDiscovery("mainStrength", event.target.value)} />
+              </Field>
+            </SessionSection>
+
+            <SessionSection title="B. El problema real">
+              <Field label="Sintoma que el cliente describe">
+                <TextArea className="text-base" value={discovery.describedSymptom} onChange={(event) => updateDiscovery("describedSymptom", event.target.value)} />
+              </Field>
+              <Field label="Problema raiz identificado por LC">
+                <TextArea className="text-base" value={discovery.rootProblem} onChange={(event) => updateDiscovery("rootProblem", event.target.value)} />
+              </Field>
+              <Field label="¿Que han intentado antes para resolverlo?">
+                <TextArea className="text-base" value={discovery.previousAttempts} onChange={(event) => updateDiscovery("previousAttempts", event.target.value)} />
+              </Field>
+              <Field label="Urgencia real del problema">
+                <Select className="text-base" value={discovery.urgency} onChange={(event) => updateDiscovery("urgency", event.target.value as DiscoveryForm["urgency"])}>
+                  <option value="alta">Alta</option>
+                  <option value="media">Media</option>
+                  <option value="baja">Baja</option>
+                </Select>
+              </Field>
+              <Field label="¿Que pasa si no lo resuelven en los proximos 90 dias?">
+                <TextArea className="text-base" value={discovery.urgencyImpact} onChange={(event) => updateDiscovery("urgencyImpact", event.target.value)} />
+              </Field>
+            </SessionSection>
+
+            <SessionSection title="C. Baseline inicial">
+              <Field label="Indicador comercial clave">
+                <TextArea className="text-base" value={discovery.commercialBaseline} onChange={(event) => updateDiscovery("commercialBaseline", event.target.value)} />
+              </Field>
+              <Field label="Indicador operativo clave">
+                <TextArea className="text-base" value={discovery.operationalBaseline} onChange={(event) => updateDiscovery("operationalBaseline", event.target.value)} />
+              </Field>
+              <Field label="Presencia digital actual">
+                <TextArea className="text-base" value={discovery.digitalBaseline} onChange={(event) => updateDiscovery("digitalBaseline", event.target.value)} />
+              </Field>
+              <Field label="Metrica de exito acordada">
+                <TextArea className="text-base" value={discovery.successMetric} onChange={(event) => updateDiscovery("successMetric", event.target.value)} />
+              </Field>
+              <Field label="Fecha limite para lograr la metrica">
+                <TextInput className="text-base" type="date" value={discovery.metricDeadline} onChange={(event) => updateDiscovery("metricDeadline", event.target.value)} />
+              </Field>
+            </SessionSection>
+
+            <SessionSection title="D. Evaluacion interna LC">
+              <Field label="Paquete recomendado">
+                <Select className="text-base" value={discovery.recommendedPackage} onChange={(event) => updateDiscovery("recommendedPackage", event.target.value)}>
+                  <option value="">Selecciona</option>
+                  <option>Diagnostico LC ($15,000)</option>
+                  <option>Proyecto LC ($50K-$120K)</option>
+                  <option>Retencion LC ($12K-$18K/mes)</option>
+                </Select>
+              </Field>
+              <Field label="Justificacion del paquete recomendado">
+                <TextArea className="text-base" value={discovery.packageJustification} onChange={(event) => updateDiscovery("packageJustification", event.target.value)} />
+              </Field>
+              <div className="grid gap-4 md:grid-cols-3">
+                <Field label="Horas LC por semana">
+                  <TextInput className="text-base" type="number" value={discovery.weeklyHours} onChange={(event) => updateDiscovery("weeklyHours", Number(event.target.value))} />
+                </Field>
+                <Field label="Duracion estimada en meses">
+                  <TextInput className="text-base" type="number" value={discovery.durationMonths} onChange={(event) => updateDiscovery("durationMonths", Number(event.target.value))} />
+                </Field>
+                <Field label="Complejidad">
+                  <Select className="text-base" value={discovery.complexity} onChange={(event) => updateDiscovery("complexity", event.target.value)}>
+                    <option>1 - Baja</option>
+                    <option>2</option>
+                    <option>3 - Media</option>
+                    <option>4</option>
+                    <option>5 - Alta</option>
+                  </Select>
+                </Field>
+              </div>
+              <div>
+                <p className="text-sm font-medium text-brand-charcoal/80">Senales de alerta detectadas</p>
+                <div className="mt-2 grid gap-2">
+                  {warningSignalOptions.map((item) => (
+                    <label key={item} className="flex items-center gap-3 rounded-md border border-brand-mist bg-white p-3 text-base">
+                      <input type="checkbox" checked={discovery.warningSignals.includes(item)} onChange={() => toggleWarning(item)} />
+                      {item}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <Field label="Notas libres de la sesion">
+                <TextArea className="text-base" value={discovery.sessionNotes} onChange={(event) => updateDiscovery("sessionNotes", event.target.value)} />
+              </Field>
+              <Field label="Decision LC">
+                <Select className="text-base" value={discovery.finalDecision} onChange={(event) => updateDiscovery("finalDecision", event.target.value as DiscoveryForm["finalDecision"])}>
+                  <option value="proceder">Proceder - enviar propuesta formal</option>
+                  <option value="evaluacion">En evaluacion - necesita mas informacion</option>
+                  <option value="no_fit">No hay fit - cerrar con respeto</option>
+                </Select>
+              </Field>
+              <Field label="Justificacion de la decision">
+                <TextArea className="text-base" value={discovery.decisionJustification} onChange={(event) => updateDiscovery("decisionJustification", event.target.value)} />
+              </Field>
+            </SessionSection>
+          </div>
+        </Panel>
+
+        {!complete ? (
+          <div className="rounded-lg border border-brand-gold/40 bg-brand-gold/10 p-4 text-base text-brand-charcoal">
+            Completa los campos clave del descubrimiento para habilitar la conversion a cliente.
+          </div>
+        ) : null}
+      </div>
+    </main>
+  );
+}
+
+function ReadOnlyFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-lg border border-brand-mist bg-white p-4">
+      <p className="text-xs font-semibold uppercase tracking-wide text-brand-charcoal/45">{label}</p>
+      <p className="mt-2 text-base leading-7 text-brand-charcoal">{value || "Pendiente"}</p>
+    </div>
+  );
+}
+
+function SessionSection({ title, children }: { title: string; children: ReactNode }) {
+  return (
+    <section className="grid gap-4 border-t border-brand-mist pt-5 first:border-t-0 first:pt-0">
+      <h2 className="text-xl font-semibold text-brand-charcoal">{title}</h2>
+      {children}
+    </section>
   );
 }
 

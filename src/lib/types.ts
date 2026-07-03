@@ -49,6 +49,34 @@ export interface LeadIntake {
   internalFlag: "verde" | "amarillo" | "rojo";
 }
 
+export interface DiscoveryForm {
+  businessModel: string;
+  monthlyRevenue: string;
+  employeeCount: number;
+  activeClients: number;
+  mainStrength: string;
+  describedSymptom: string;
+  rootProblem: string;
+  previousAttempts: string;
+  urgency: "alta" | "media" | "baja";
+  urgencyImpact: string;
+  commercialBaseline: string;
+  operationalBaseline: string;
+  digitalBaseline: string;
+  successMetric: string;
+  metricDeadline: string;
+  recommendedPackage: string;
+  packageJustification: string;
+  weeklyHours: number;
+  durationMonths: number;
+  complexity: string;
+  warningSignals: string[];
+  sessionNotes: string;
+  finalDecision: "proceder" | "evaluacion" | "no_fit";
+  decisionJustification: string;
+  completedAt?: string;
+}
+
 export interface AppUser {
   id: string;
   name: string;
@@ -75,6 +103,7 @@ export interface Lead {
   source: string;
   lastInteraction: string;
   intake?: LeadIntake;
+  discovery?: DiscoveryForm;
   recommendedPackage?: PackageType;
   convertedClientId?: string;
 }

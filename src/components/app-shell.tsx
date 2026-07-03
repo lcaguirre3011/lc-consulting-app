@@ -18,6 +18,7 @@ import {
   Target,
   Users,
   X,
+  Video,
 } from "lucide-react";
 import Link from "next/link";
 import Image from "next/image";
@@ -25,28 +26,54 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState, type ReactNode } from "react";
 import { Button } from "./ui";
 
-const nav = [
-  { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-  { href: "/crm", label: "CRM", icon: Target },
-  { href: "/clientes", label: "Clientes", icon: Users },
-  { href: "/diagnosticos", label: "Diagnosticos", icon: FileText },
-  { href: "/recetario", label: "Recetario", icon: NotebookTabs },
-  { href: "/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
-  { href: "/gantt", label: "Gantt", icon: Activity },
-  { href: "/tareas", label: "Tareas", icon: ListChecks },
-  { href: "/kpis", label: "KPIs", icon: BarChart3 },
-  { href: "/consultores", label: "Consultores", icon: CalendarDays },
-  { href: "/reportes", label: "Reportes", icon: FileText },
-  { href: "/configuracion", label: "Configuracion", icon: Settings },
+const navSections = [
+  {
+    items: [{ href: "/dashboard", label: "Dashboard", icon: LayoutDashboard }],
+  },
+  {
+    label: "COMERCIAL",
+    items: [
+      { href: "/crm", label: "CRM", icon: Target },
+      { href: "/clientes", label: "Clientes", icon: Users },
+    ],
+  },
+  {
+    label: "EJECUCIÓN",
+    items: [
+      { href: "/proyectos", label: "Proyectos", icon: BriefcaseBusiness },
+      { href: "/gantt", label: "Gantt", icon: Activity },
+      { href: "/tareas", label: "Tareas", icon: ListChecks },
+    ],
+  },
+  {
+    label: "MEDICIÓN",
+    items: [
+      { href: "/kpis", label: "KPIs", icon: BarChart3 },
+      { href: "/reportes", label: "Reportes", icon: FileText },
+      { href: "/diagnosticos", label: "Diagnósticos", icon: FileText },
+    ],
+  },
+  {
+    label: "EQUIPO",
+    items: [
+      { href: "/consultores", label: "Consultores", icon: CalendarDays },
+      { href: "/recetario", label: "Recetario", icon: NotebookTabs },
+    ],
+  },
+  {
+    items: [{ href: "/configuracion", label: "Configuración", icon: Settings }],
+  },
 ];
 
 function ShellContent({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
-  const { user, logout, isReady } = useStore();
+  const { user, logout, isReady, data } = useStore();
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const isPublicLeadForm = pathname.startsWith("/formularios/lead/");
+  const isSessionMode = pathname.startsWith("/sesion/");
+  const activeSessionLead = data.leads.find((lead) => lead.stage === "diagnostico agendado");
 
   useEffect(() => {
     if (isReady && !user && pathname !== "/login" && !isPublicLeadForm) router.replace("/login");
@@ -59,6 +86,7 @@ function ShellContent({ children }: { children: ReactNode }) {
   if (pathname === "/login") return <>{children}</>;
   if (isPublicLeadForm) return <>{children}</>;
   if (!user) return <div className="min-h-screen bg-slate-50" />;
+  if (isSessionMode) return <>{children}</>;
 
   const sidebar = (
     <aside className={cn("flex h-full flex-col border-r border-brand-charcoal/10 bg-white transition-all", collapsed ? "w-20" : "w-72")}>
@@ -87,27 +115,41 @@ function ShellContent({ children }: { children: ReactNode }) {
           </button>
         </div>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {nav.map((item) => {
-          const Icon = item.icon;
-          const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              onClick={() => setOpen(false)}
-              className={cn(
-                "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-brand-charcoal/70 transition hover:bg-brand-mist/70 hover:text-brand-charcoal",
-                collapsed && "justify-center px-0",
-                active && "bg-brand-navy text-white shadow-sm hover:bg-brand-navy hover:text-white",
-              )}
-              title={collapsed ? item.label : undefined}
-            >
-              <Icon className={cn("h-4 w-4", active && "text-brand-gold")} />
-              <span className={cn(collapsed && "hidden")}>{item.label}</span>
-            </Link>
-          );
-        })}
+      <nav className="flex-1 overflow-y-auto px-3 py-4">
+        {navSections.map((section, sectionIndex) => (
+          <div
+            key={section.label ?? `section-${sectionIndex}`}
+            className={cn(sectionIndex > 0 && "mt-4 border-t border-brand-charcoal/10 pt-3")}
+          >
+            {section.label ? (
+              <p className={cn("mb-2 px-3 text-[10px] font-semibold uppercase tracking-[0.16em] text-brand-charcoal/35", collapsed && "hidden")}>
+                {section.label}
+              </p>
+            ) : null}
+            <div className="space-y-1">
+              {section.items.map((item) => {
+                const Icon = item.icon;
+                const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    onClick={() => setOpen(false)}
+                    className={cn(
+                      "flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-brand-charcoal/70 transition hover:bg-brand-mist/70 hover:text-brand-charcoal",
+                      collapsed && "justify-center px-0",
+                      active && "bg-brand-navy text-white shadow-sm hover:bg-brand-navy hover:text-white",
+                    )}
+                    title={collapsed ? item.label : undefined}
+                  >
+                    <Icon className={cn("h-4 w-4", active && "text-brand-gold")} />
+                    <span className={cn(collapsed && "hidden")}>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
       </nav>
       <div className={cn("border-t border-brand-charcoal/10 p-4", collapsed && "px-2")}>
         {!collapsed ? (
@@ -152,6 +194,16 @@ function ShellContent({ children }: { children: ReactNode }) {
         </button>
       </header>
       <main className={cn("px-4 py-6 transition-all sm:px-6 lg:px-8 lg:py-8", collapsed ? "lg:ml-20" : "lg:ml-72")}>{children}</main>
+      {activeSessionLead ? (
+        <Link
+          href={`/sesion/lead/${activeSessionLead.id}`}
+          className="fixed bottom-4 right-4 z-30 inline-flex h-12 w-12 items-center justify-center rounded-full bg-brand-navy text-brand-gold shadow-lg shadow-brand-navy/25 md:hidden"
+          aria-label="Iniciar modo sesión"
+          title={`Sesión con ${activeSessionLead.company}`}
+        >
+          <Video className="h-5 w-5" />
+        </Link>
+      ) : null}
     </div>
   );
 }

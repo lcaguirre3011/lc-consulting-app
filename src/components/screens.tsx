@@ -485,14 +485,13 @@ const crmPipelineColumns: { label: string; description: string; stages: LeadStag
   { label: "Propuesta", description: "Paquete recomendado", stages: ["propuesta enviada"], target: "propuesta enviada" },
   { label: "Negociacion", description: "Ajuste y cierre", stages: ["negociacion"], target: "negociacion" },
   { label: "Cliente ganado", description: "Crear expediente", stages: ["cliente ganado"], target: "cliente ganado" },
-  { label: "Perdido", description: "No fit o pausado", stages: ["perdido"], target: "perdido" },
 ];
 
-type CrmTab = "pipeline" | "leads" | "clientes" | "seguimientos" | "formularios" | "reportes";
-const crmTabIds: CrmTab[] = ["pipeline", "leads", "clientes", "seguimientos", "formularios", "reportes"];
+type CrmTab = "tablero" | "pipeline" | "leads" | "reportes";
+const crmTabIds: CrmTab[] = ["tablero", "pipeline", "leads", "reportes"];
 
 function asCrmTab(value: string | null): CrmTab {
-  return crmTabIds.includes(value as CrmTab) ? (value as CrmTab) : "pipeline";
+  return crmTabIds.includes(value as CrmTab) ? (value as CrmTab) : "tablero";
 }
 
 function leadFitTone(lead: Lead) {
@@ -537,7 +536,6 @@ export function CrmScreen() {
     .filter((lead) => ["diagnostico agendado", "sesion inicial agendada", "propuesta enviada", "negociacion"].includes(lead.stage))
     .reduce((sum, lead) => sum + lead.estimatedValue * (lead.closeProbability / 100), 0);
   const followupsToday = activeLeads.filter((lead) => lead.lastInteraction === today).length;
-  const openProposals = data.leads.filter((lead) => ["propuesta enviada", "negociacion"].includes(lead.stage));
   const staleLeads = activeLeads.filter((lead) => daysLate(lead.lastInteraction) >= 7);
   const wonLeads = data.leads.filter((lead) => lead.stage === "cliente ganado");
   const formLeads = data.leads.filter((lead) => lead.stage !== "perdido");
@@ -552,17 +550,26 @@ export function CrmScreen() {
       (dateFilter === "7" && daysLate(lead.lastInteraction) <= 7);
     return matchesResponsible && matchesIndustry && matchesDate;
   });
-  const crmTabs: { id: CrmTab; label: string }[] = [
-    { id: "pipeline", label: "Pipeline" },
-    { id: "leads", label: "Leads" },
-    { id: "clientes", label: "Clientes" },
-    { id: "seguimientos", label: "Seguimientos" },
-    { id: "formularios", label: "Formularios" },
-    { id: "reportes", label: "Reportes" },
-  ];
-
   const selectCrmTab = (nextTab: CrmTab) => {
     router.replace(`/crm?tab=${nextTab}`);
+  };
+  const crmViewCopy: Record<CrmTab, { title: string; description: string }> = {
+    tablero: {
+      title: "Tablero comercial",
+      description: "Lectura ejecutiva del CRM: pipeline, cierres probables, seguimientos y riesgos comerciales.",
+    },
+    pipeline: {
+      title: "Pipeline comercial",
+      description: "Mueve oportunidades entre etapas con un tablero amplio, limpio y orientado a cierre consultivo.",
+    },
+    leads: {
+      title: "Lead",
+      description: "Administra el registro operativo de leads, formularios, seguimientos y clientes ganados desde una sola vista.",
+    },
+    reportes: {
+      title: "Reportes CRM",
+      description: "Analiza conversiones, valor por etapa, riesgos y pendientes comerciales.",
+    },
   };
 
   const copyLeadFormLink = async (leadId: string) => {
@@ -591,44 +598,19 @@ export function CrmScreen() {
               <Badge tone="blue">Leading Connections OS</Badge>
               <Badge>CRM consultivo</Badge>
             </div>
-            <h1 className="mt-4 text-2xl font-semibold tracking-tight text-brand-charcoal sm:text-3xl">Pipeline comercial</h1>
+            <h1 className="mt-4 text-2xl font-semibold tracking-tight text-brand-charcoal sm:text-3xl">{crmViewCopy[tab].title}</h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-brand-charcoal/60">
-              Gestiona el proceso desde el primer contacto hasta cliente ganado, con Formulario 1, investigacion, diagnostico y propuesta en un flujo claro.
+              {crmViewCopy[tab].description}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <Button variant="secondary" onClick={() => selectCrmTab("formularios")}><FileCheck2 className="h-4 w-4" />Formularios</Button>
+            <Button variant="secondary" onClick={() => selectCrmTab("leads")}><FileCheck2 className="h-4 w-4" />Formularios</Button>
             <Button onClick={() => setShowForm((value) => !value)}><Plus className="h-4 w-4" />Nuevo lead</Button>
           </div>
         </div>
       </section>
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-        <Stat label="Pipeline total" value={money(pipelineTotal)} detail={`${activeLeads.length} oportunidades activas`} tone="blue" />
-        <Stat label="Cierre probable" value={money(closeProbable)} detail="Estimado este mes" tone="green" />
-        <Stat label="Seguimientos hoy" value={`${followupsToday}`} detail="Actividad registrada hoy" tone="yellow" />
-        <Stat label="Propuestas abiertas" value={`${openProposals.length}`} detail={money(openProposals.reduce((sum, lead) => sum + lead.estimatedValue, 0))} />
-        <Stat label="Sin actividad" value={`${staleLeads.length}`} detail="Mas de 7 dias" tone={staleLeads.length ? "red" : "green"} />
-      </div>
-
-      <div className="rounded-lg border border-brand-charcoal/10 bg-white p-1 shadow-sm">
-        <div className="flex gap-1 overflow-x-auto">
-          {crmTabs.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              onClick={() => selectCrmTab(item.id)}
-              className={cn(
-                "whitespace-nowrap rounded-md px-3 py-2 text-sm font-medium text-brand-charcoal/55 transition hover:bg-brand-paper hover:text-brand-charcoal",
-                tab === item.id && "bg-brand-navy text-white shadow-sm hover:bg-brand-navy hover:text-white",
-              )}
-            >
-              {item.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
+      {tab !== "tablero" ? (
       <div className="grid gap-3 rounded-lg border border-brand-charcoal/10 bg-white p-3 shadow-sm md:grid-cols-3">
         <Field label="Responsable">
           <Select value={responsibleFilter} onChange={(event) => setResponsibleFilter(event.currentTarget.value)}>
@@ -650,6 +632,7 @@ export function CrmScreen() {
           </Select>
         </Field>
       </div>
+      ) : null}
 
       {showForm ? (
         <QuickLeadForm
@@ -670,20 +653,51 @@ export function CrmScreen() {
               <p className="font-semibold">Lead creado y formulario copiado.</p>
               <p className="mt-1 text-emerald-800">Envia el enlace al prospecto para iniciar la calificacion.</p>
             </div>
-            <Button variant="secondary" onClick={() => selectCrmTab("formularios")}>Ver formularios</Button>
+            <Button variant="secondary" onClick={() => selectCrmTab("leads")}>Ver formularios</Button>
           </div>
         </div>
       ) : null}
 
+      {tab === "tablero" ? (
+        <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+          <Panel>
+            <PanelHeader title="Resumen comercial" description="Lectura rápida del negocio antes de entrar al detalle operativo." />
+            <div className="grid gap-3 p-5 sm:grid-cols-2">
+              <Stat label="Pipeline total" value={money(pipelineTotal)} detail={`${activeLeads.length} oportunidades activas`} tone="blue" />
+              <Stat label="Cierre probable" value={money(closeProbable)} detail="Estimado este mes" tone="green" />
+              <Stat label="Seguimientos hoy" value={`${followupsToday}`} detail="Actividad registrada hoy" tone="yellow" />
+              <Stat label="Leads sin actividad" value={`${staleLeads.length}`} detail="Mas de 7 dias" tone={staleLeads.length ? "red" : "green"} />
+            </div>
+          </Panel>
+          <Panel>
+            <PanelHeader title="Siguiente mejor acción" description="Prioriza conversaciones que necesitan movimiento." />
+            <div className="space-y-3 p-5">
+              {activeLeads.slice(0, 4).map((lead) => (
+                <button key={lead.id} type="button" onClick={() => setEditingLead(lead)} className="w-full rounded-lg border border-brand-mist p-4 text-left transition hover:border-brand-gold hover:bg-brand-gold/10">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="font-medium text-brand-charcoal">{lead.company}</p>
+                      <p className="mt-1 text-sm text-brand-charcoal/55">{lead.nextStep}</p>
+                    </div>
+                    <Badge tone={daysLate(lead.lastInteraction) >= 7 ? "red" : "blue"}>{shortDate(lead.lastInteraction)}</Badge>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </Panel>
+        </div>
+      ) : null}
+
       {tab === "pipeline" ? (
-        <div className="grid gap-3 overflow-x-auto pb-2 xl:grid-cols-7">
+        <div className="-mx-4 overflow-x-auto px-4 pb-3">
+          <div className="flex min-w-max gap-4">
           {crmPipelineColumns.map((column) => {
             const leads = visibleLeads.filter((lead) => column.stages.includes(lead.stage));
             const columnValue = leads.reduce((sum, lead) => sum + lead.estimatedValue, 0);
             return (
               <section
                 key={column.label}
-                className="min-w-72 rounded-lg border border-brand-charcoal/10 bg-white/80 shadow-sm"
+                className="w-[340px] shrink-0 rounded-lg border border-brand-charcoal/10 bg-white/80 shadow-sm"
                 onDragOver={(event) => event.preventDefault()}
                 onDrop={() => {
                   if (draggingLeadId) moveLeadThroughPipeline(draggingLeadId, column.target);
@@ -759,103 +773,111 @@ export function CrmScreen() {
               </section>
             );
           })}
+          </div>
         </div>
       ) : null}
 
       {tab === "leads" ? (
-        <Panel>
-          <PanelHeader title="Leads" description="Vista tipo base de datos para editar valores principales sin salir del CRM." />
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] text-left text-sm">
-              <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
-                <tr>
-                  <th className="px-5 py-3">Empresa</th>
-                  <th className="px-5 py-3">Contacto</th>
-                  <th className="px-5 py-3">Etapa</th>
-                  <th className="px-5 py-3">Dolor</th>
-                  <th className="px-5 py-3">Paquete</th>
-                  <th className="px-5 py-3">Valor</th>
-                  <th className="px-5 py-3">Prob.</th>
-                  <th className="px-5 py-3">Accion</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-brand-mist">
-                {visibleLeads.map((lead) => (
-                  <tr key={lead.id} className="hover:bg-brand-gold/10">
-                    <td className="px-5 py-4"><TextInput className="min-w-44" defaultValue={lead.company} onBlur={(event) => updateLead(lead.id, { company: event.currentTarget.value })} /></td>
-                    <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactName} onBlur={(event) => updateLead(lead.id, { contactName: event.currentTarget.value })} /></td>
-                    <td className="px-5 py-4">
-                      <Select
-                        className="min-w-48"
-                        value={lead.stage}
-                        onChange={(event) => moveLeadThroughPipeline(lead.id, event.currentTarget.value as LeadStage)}
-                      >
-                        {leadStages.map((item) => <option key={item}>{item}</option>)}
-                      </Select>
-                    </td>
-                    <td className="px-5 py-4 max-w-72 text-brand-charcoal/65">{leadPain(lead)}</td>
-                    <td className="px-5 py-4">
-                      <Select className="min-w-56" value={lead.recommendedPackage ?? ""} onChange={(event) => updateLead(lead.id, { recommendedPackage: event.currentTarget.value ? (event.currentTarget.value as PackageType) : undefined })}>
-                        <option value="">Por definir</option>
-                        {consultingPackages.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
-                      </Select>
-                    </td>
-                    <td className="px-5 py-4"><TextInput className="w-32" type="number" defaultValue={lead.estimatedValue} onBlur={(event) => updateLead(lead.id, { estimatedValue: Number(event.currentTarget.value) })} /></td>
-                    <td className="px-5 py-4"><TextInput className="w-20" type="number" min="0" max="100" defaultValue={lead.closeProbability} onBlur={(event) => updateLead(lead.id, { closeProbability: Number(event.currentTarget.value) })} /></td>
-                    <td className="px-5 py-4"><Button variant="ghost" onClick={() => setEditingLead(lead)}>Abrir</Button></td>
+        <div className="space-y-5">
+          <Panel>
+            <PanelHeader title="Leads" description="Base operativa: edita valores principales, revisa formularios y da seguimiento desde una sola vista." />
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1180px] text-left text-sm">
+                <thead className="border-b border-brand-mist bg-brand-paper text-xs uppercase text-brand-charcoal/55">
+                  <tr>
+                    <th className="px-5 py-3">Empresa</th>
+                    <th className="px-5 py-3">Contacto</th>
+                    <th className="px-5 py-3">Etapa</th>
+                    <th className="px-5 py-3">Dolor</th>
+                    <th className="px-5 py-3">Paquete</th>
+                    <th className="px-5 py-3">Valor</th>
+                    <th className="px-5 py-3">Prob.</th>
+                    <th className="px-5 py-3">Accion</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </Panel>
-      ) : null}
-
-      {tab === "clientes" ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {wonLeads.map((lead) => (
-            <Link key={lead.id} href={lead.convertedClientId ? `/clientes/${lead.convertedClientId}` : "/clientes"} className="rounded-lg border border-brand-charcoal/10 bg-white p-5 shadow-sm transition hover:border-brand-gold hover:shadow-md">
-              <div className="flex items-start justify-between gap-3">
-                <div><h3 className="font-semibold text-brand-charcoal">{lead.company}</h3><p className="mt-1 text-sm text-brand-charcoal/55">{lead.contactName}</p></div>
-                <Badge tone="green">Ganado</Badge>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-brand-charcoal/65">{leadPain(lead)}</p>
-              <div className="mt-4 flex flex-wrap gap-2"><Badge>{money(lead.estimatedValue)}</Badge><Badge>{lead.recommendedPackage ?? "Sin paquete"}</Badge></div>
-            </Link>
-          ))}
-          {!wonLeads.length ? <ActionEmptyState icon={<Users className="h-5 w-5" />} title="Sin clientes ganados desde CRM" detail="Cuando una oportunidad llegue a Cliente ganado se creara el expediente automaticamente." /> : null}
-        </div>
-      ) : null}
-
-      {tab === "seguimientos" ? (
-        <div className="grid gap-4 xl:grid-cols-2">
-          {[...activeLeads].sort((a, b) => b.lastInteraction.localeCompare(a.lastInteraction)).map((lead) => (
-            <button key={lead.id} onClick={() => setEditingLead(lead)} className="rounded-lg border border-brand-charcoal/10 bg-white p-5 text-left shadow-sm transition hover:border-brand-gold hover:shadow-md">
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div><h3 className="font-semibold text-brand-charcoal">{lead.company}</h3><p className="mt-1 text-sm text-brand-charcoal/55">{lead.contactName} - {leadIndustry(lead)}</p></div>
-                <Badge tone={daysLate(lead.lastInteraction) >= 7 ? "red" : "blue"}>{shortDate(lead.lastInteraction)}</Badge>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-brand-charcoal/70">{lead.nextStep}</p>
-            </button>
-          ))}
-        </div>
-      ) : null}
-
-      {tab === "formularios" ? (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {formLeads.map((lead) => (
-            <div key={lead.id} className="rounded-lg border border-brand-charcoal/10 bg-white p-5 shadow-sm">
-              <div className="flex items-start justify-between gap-3">
-                <div><h3 className="font-semibold text-brand-charcoal">{lead.company}</h3><p className="mt-1 text-sm text-brand-charcoal/55">Formulario inicial</p></div>
-                <Badge tone={lead.intake ? "green" : "yellow"}>{lead.intake ? "Recibido" : "Pendiente"}</Badge>
-              </div>
-              <p className="mt-4 text-sm leading-6 text-brand-charcoal/65">{lead.intake?.mainProblem ?? "Aun no responde el filtro inicial."}</p>
-              <div className="mt-5 flex flex-wrap gap-2">
-                <Button variant="secondary" onClick={() => copyLeadFormLink(lead.id)}><Copy className="h-4 w-4" />{copiedLeadId === lead.id ? "Copiado" : "Copiar formulario"}</Button>
-                <Link href={getLeadFormPath(lead.id)} target="_blank" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-brand-mist bg-white px-3 text-sm font-medium text-brand-charcoal hover:border-brand-gold"><ExternalLink className="h-4 w-4" />Abrir</Link>
-              </div>
+                </thead>
+                <tbody className="divide-y divide-brand-mist">
+                  {visibleLeads.map((lead) => (
+                    <tr key={lead.id} className="hover:bg-brand-gold/10">
+                      <td className="px-5 py-4"><TextInput className="min-w-44" defaultValue={lead.company} onBlur={(event) => updateLead(lead.id, { company: event.currentTarget.value })} /></td>
+                      <td className="px-5 py-4"><TextInput className="min-w-40" defaultValue={lead.contactName} onBlur={(event) => updateLead(lead.id, { contactName: event.currentTarget.value })} /></td>
+                      <td className="px-5 py-4">
+                        <Select
+                          className="min-w-48"
+                          value={lead.stage}
+                          onChange={(event) => moveLeadThroughPipeline(lead.id, event.currentTarget.value as LeadStage)}
+                        >
+                          {leadStages.map((item) => <option key={item}>{item}</option>)}
+                        </Select>
+                      </td>
+                      <td className="px-5 py-4 max-w-72 text-brand-charcoal/65">{leadPain(lead)}</td>
+                      <td className="px-5 py-4">
+                        <Select className="min-w-56" value={lead.recommendedPackage ?? ""} onChange={(event) => updateLead(lead.id, { recommendedPackage: event.currentTarget.value ? (event.currentTarget.value as PackageType) : undefined })}>
+                          <option value="">Por definir</option>
+                          {consultingPackages.map((item) => <option key={item.id} value={item.name}>{item.name}</option>)}
+                        </Select>
+                      </td>
+                      <td className="px-5 py-4"><TextInput className="w-32" type="number" defaultValue={lead.estimatedValue} onBlur={(event) => updateLead(lead.id, { estimatedValue: Number(event.currentTarget.value) })} /></td>
+                      <td className="px-5 py-4"><TextInput className="w-20" type="number" min="0" max="100" defaultValue={lead.closeProbability} onBlur={(event) => updateLead(lead.id, { closeProbability: Number(event.currentTarget.value) })} /></td>
+                      <td className="px-5 py-4"><Button variant="ghost" onClick={() => setEditingLead(lead)}>Abrir</Button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
-          ))}
+          </Panel>
+
+          <div className="grid gap-5 xl:grid-cols-[1fr_0.85fr]">
+            <Panel>
+              <PanelHeader title="Seguimientos" description="Próximas acciones de leads activos." />
+              <div className="space-y-3 p-5">
+                {[...activeLeads].sort((a, b) => b.lastInteraction.localeCompare(a.lastInteraction)).map((lead) => (
+                  <button key={lead.id} onClick={() => setEditingLead(lead)} className="w-full rounded-lg border border-brand-mist p-4 text-left transition hover:border-brand-gold hover:bg-brand-gold/10">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div><h3 className="font-semibold text-brand-charcoal">{lead.company}</h3><p className="mt-1 text-sm text-brand-charcoal/55">{lead.contactName} - {leadIndustry(lead)}</p></div>
+                      <Badge tone={daysLate(lead.lastInteraction) >= 7 ? "red" : "blue"}>{shortDate(lead.lastInteraction)}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-brand-charcoal/70">{lead.nextStep}</p>
+                  </button>
+                ))}
+              </div>
+            </Panel>
+
+            <Panel>
+              <PanelHeader title="Formularios iniciales" description="Links del Formulario 1 vinculados al lead." />
+              <div className="space-y-3 p-5">
+                {formLeads.map((lead) => (
+                  <div key={lead.id} className="rounded-lg border border-brand-mist p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div><h3 className="font-semibold text-brand-charcoal">{lead.company}</h3><p className="mt-1 text-sm text-brand-charcoal/55">Formulario inicial</p></div>
+                      <Badge tone={lead.intake ? "green" : "yellow"}>{lead.intake ? "Recibido" : "Pendiente"}</Badge>
+                    </div>
+                    <p className="mt-3 text-sm leading-6 text-brand-charcoal/65">{lead.intake?.mainProblem ?? "Aun no responde el filtro inicial."}</p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <Button variant="secondary" onClick={() => copyLeadFormLink(lead.id)}><Copy className="h-4 w-4" />{copiedLeadId === lead.id ? "Copiado" : "Copiar"}</Button>
+                      <Link href={getLeadFormPath(lead.id)} target="_blank" className="inline-flex h-10 items-center justify-center gap-2 rounded-md border border-brand-mist bg-white px-3 text-sm font-medium text-brand-charcoal hover:border-brand-gold"><ExternalLink className="h-4 w-4" />Abrir</Link>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </Panel>
+          </div>
+
+          <Panel>
+            <PanelHeader title="Clientes ganados desde CRM" description="Leads que ya crearon o abren expediente empresarial." />
+            <div className="grid gap-4 p-5 md:grid-cols-2 xl:grid-cols-3">
+              {wonLeads.map((lead) => (
+                <Link key={lead.id} href={lead.convertedClientId ? `/clientes/${lead.convertedClientId}` : "/clientes"} className="rounded-lg border border-brand-mist bg-white p-5 shadow-sm transition hover:border-brand-gold hover:shadow-md">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><h3 className="font-semibold text-brand-charcoal">{lead.company}</h3><p className="mt-1 text-sm text-brand-charcoal/55">{lead.contactName}</p></div>
+                    <Badge tone="green">Ganado</Badge>
+                  </div>
+                  <p className="mt-4 text-sm leading-6 text-brand-charcoal/65">{leadPain(lead)}</p>
+                  <div className="mt-4 flex flex-wrap gap-2"><Badge>{money(lead.estimatedValue)}</Badge><Badge>{lead.recommendedPackage ?? "Sin paquete"}</Badge></div>
+                </Link>
+              ))}
+              {!wonLeads.length ? <ActionEmptyState icon={<Users className="h-5 w-5" />} title="Sin clientes ganados desde CRM" detail="Cuando una oportunidad llegue a Cliente ganado se creara el expediente automaticamente." /> : null}
+            </div>
+          </Panel>
         </div>
       ) : null}
 

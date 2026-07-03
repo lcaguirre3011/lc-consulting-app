@@ -3,7 +3,6 @@
 import { StoreProvider, useStore } from "@/lib/store";
 import { cn } from "@/lib/utils";
 import {
-  ArrowLeft,
   BriefcaseBusiness,
   CheckCircle2,
   CircleDollarSign,
@@ -53,8 +52,10 @@ const moduleItems: { href: string; label: string; icon: LucideIcon }[] = [
 
 const moduleNavItems: Record<string, { href: string; label: string; icon: LucideIcon }[]> = {
   "/crm": [
-    { href: "/crm?tab=pipeline", label: "Pipeline comercial", icon: Target },
-    { href: "/crm?tab=leads", label: "Leads", icon: Users },
+    { href: "/crm?tab=tablero", label: "Tablero", icon: LayoutGrid },
+    { href: "/crm?tab=pipeline", label: "Pipeline", icon: Target },
+    { href: "/crm?tab=leads", label: "Lead", icon: Users },
+    { href: "/crm?tab=reportes", label: "Reportes", icon: FileBarChart2 },
   ],
   "/clientes": [
     { href: "/clientes?section=empresas", label: "Empresas", icon: BriefcaseBusiness },
@@ -128,7 +129,7 @@ const moduleNavItems: Record<string, { href: string; label: string; icon: Lucide
 };
 
 const defaultModuleHref: Record<string, string> = {
-  "/crm": "/crm?tab=pipeline",
+  "/crm": "/crm?tab=tablero",
   "/clientes": "/clientes?section=empresas",
   "/proyectos": "/proyectos?view=modulos",
   "/gantt": "/proyectos?view=gantt",
@@ -199,11 +200,7 @@ function ShellContent({ children }: { children: ReactNode }) {
     </nav>
   );
 
-  const goBack = () => {
-    if (window.history.length > 1) {
-      router.back();
-      return;
-    }
+  const goHome = () => {
     router.push("/app");
   };
 
@@ -227,9 +224,9 @@ function ShellContent({ children }: { children: ReactNode }) {
               <p className="mt-1 text-xs leading-none text-brand-charcoal/55">{currentModule?.label ?? "OS"}</p>
             </div>
           </Link>
-          <Button variant="secondary" onClick={goBack} className="hidden shrink-0 sm:inline-flex">
-            <ArrowLeft className="h-4 w-4" />
-            Regresar
+          <Button variant="secondary" onClick={goHome} className="hidden shrink-0 sm:inline-flex">
+            <Home className="h-4 w-4" />
+            Inicio
           </Button>
           <div className="hidden flex-1 overflow-x-auto lg:block">{navigation}</div>
           <div className="ml-auto hidden items-center gap-3 lg:flex">
@@ -254,9 +251,9 @@ function ShellContent({ children }: { children: ReactNode }) {
         </div>
         {open ? (
           <div className="mt-3 grid gap-2 border-t border-brand-mist pt-3 lg:hidden">
-            <Button variant="secondary" onClick={goBack} className="justify-center">
-              <ArrowLeft className="h-4 w-4" />
-              Regresar
+            <Button variant="secondary" onClick={goHome} className="justify-center">
+              <Home className="h-4 w-4" />
+              Inicio
             </Button>
             {navigation}
             <Button variant="secondary" onClick={logout}>Salir</Button>
